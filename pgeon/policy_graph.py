@@ -234,9 +234,9 @@ class PolicyGraph(nx.MultiDiGraph):
         }
 
         for _, info in node_info.items():
-            graph_string += f"\nCREATE (s{info['id']}:State " + "{" + f'\n  uid: "{info["id"]}",\n  value: "{info["value"]}",\n  probability: {info["probability"]}, \n  frequency:{info["frequency"]}' + "\n});"
+            graph_string += f"\nCREATE (s{info['id']}:State " + "{" + f'\n  uid: "s{info["id"]}",\n  value: "{info["value"]}",\n  probability: {info["probability"]}, \n  frequency:{info["frequency"]}' + "\n});"
         for _, action in action_info.items():
-            graph_string += f"\nCREATE (a{action['id']}:Action " + "{" + f'\n  uid: "{action["id"]}",\n  value:{action["value"]}' + "\n});"
+            graph_string += f"\nCREATE (a{action['id']}:Action " + "{" + f'\n  uid: "a{action["id"]}",\n  value:{action["value"]}' + "\n});"
 
         for edge in self.edges:
             n_from, n_to, action = edge
