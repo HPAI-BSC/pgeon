@@ -1,7 +1,6 @@
 # pgeon
 
-> Tormos, A., Abalos, V., Gnatyshak, D., & Alvarez-Napagao, S. (2023, October).  [Policy graphs in action: explaining single- and
-multi-agent behaviour using predicates](https://openreview.net/forum?id=QPqL9xsYOf). In XAI in Action: Past, Present, and Future Applications.
+> Tormos, A., Abalos, V., Gnatyshak, D., & Alvarez-Napagao, S. (2023, October).  [Policy graphs in action: explaining single- and multi-agent behaviour using predicates](https://openreview.net/forum?id=QPqL9xsYOf). In _XAI in Action: Past, Present, and Future Applications_.
 
 **_pgeon_** is a Python package that produces explanations for opaque agents using **Policy Graphs** (PGs).
 
@@ -9,16 +8,15 @@ A Policy Graph is a means to obtain a representation of the behavior of an opaqu
 
 ## Getting started
 
-1. Download the repository
-2. Copy and paste the `pgeon/` folder into the root directory of your project.
-3. Install **pgeon**'s requirements with `pip install -r PATH_TO_PGEON_REQUIREMENTS`
+1. Download the `pgeon/` folder and move it into the root directory of your project.
+2. Install **pgeon**'s requirements with `pip install -r PATH_TO_PGEON_REQUIREMENTS`.
 
 
 ## Example usage
 
 ### Generating a Policy Graph
 
-Given a Gymnasium `environment` and a `discretizer`, describe an opaque agent's behavior with `fit()`.
+Given a Gymnasium `environment` and a `discretizer`, you can generate a PG to describe an opaque agent's behavior with `fit()`.
 ```python
 from pgeon import PolicyGraph
 
@@ -28,7 +26,8 @@ pg = pg.fit(agent, num_episodes=1000)
 
 ### Creating and using a PG-based policy
 
-There exist two PG-based policies. Select one or the other with `PGBasedPolicyMode`.
+There exist two PG-based policies. You can select one or the other with `PGBasedPolicyMode`.
+
 ```python
 from pgeon import PGBasedPolicy, PGBasedPolicyMode
 
@@ -42,9 +41,14 @@ action = greedy_policy.act(obs)
 
 ### More examples
 
-For a complete breakdown of **pgeon**'s features:
-1. Download the `pgeon/` and `examples/` folders and place them together, in the same root directory.
-2. Open and execute `examples/cartpole/demo.ipynb`.
+You can check [`examples/cartpole/demo.ipynb`](https://github.com/HPAI-BSC/pgeon/blob/main/example/cartpole/demo.ipynb) for a complete breakdown of **pgeon**'s features.
+
+To run the notebook yourself:
+
+1. Download the entire repository.
+2. Install **pgeon**'s requirements with `pip install -r requirements.txt`.
+3. Install an extra dependency, rllib, with `pip install "ray[rllib]"`.
+4. Open and execute `examples/cartpole/demo.ipynb`.
 
 ## Citation
 
