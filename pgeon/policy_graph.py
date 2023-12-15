@@ -234,14 +234,14 @@ class PolicyGraph(nx.MultiDiGraph):
         }
 
         for _, info in node_info.items():
-            graph_string += f"\n(s{info['id']}:State " + "{" + f'\n  value:"{info["value"]}"\n  probability:{info["probability"]}\n  frequency:{info["frequency"]}' + "\n})"
+            graph_string += f"\nCREATE (s{info['id']}:State " + "{" + f'\n  uid: "{info["id"]}",\n  value: "{info["value"]}",\n  probability: {info["probability"]}, \n  frequency:{info["frequency"]}' + "\n});"
         for _, action in action_info.items():
-            graph_string += f"\n(a{action['id']}:Action " + "{" + f'\n  value:{action["value"]}' + "\n})"
+            graph_string += f"\nCREATE (a{action['id']}:Action " + "{" + f'\n  uid: "{action["id"]}",\n  value:{action["value"]}' + "\n});"
 
         for edge in self.edges:
             n_from, n_to, action = edge
             # TODO The identifier of an edge may need to be unique. Check and rework the action part of this if needed.
-            graph_string += f"\n(s{node_info[n_from]['id']})-[a{action_info[action]['id']} " + "{" + f"probability:{self[n_from][n_to][action]['probability']} frequency:{self[n_from][n_to][action]['frequency']}" + "}" + f"]->(s{node_info[n_to]['id']})"
+            graph_string += f"\nMATCH ({node_info[n_from]['id']}:State) WHERE {node_info[n_from]['id']}.uid = \"{node_info[n_from]['id']}\" MATCH ({node_info[n_to]['id']}:State) WHERE {node_info[n_to]['id']}.uid = \"{node_info[n_to]['id']}\" CREATE (s{node_info[n_from]['id']})-[:action " + "{" + f"aid: \"{action_info[action]['id']}\", probability:{self[n_from][n_to][action]['probability']}, frequency:{self[n_from][n_to][action]['frequency']}" + "}" + f"]->(s{node_info[n_to]['id']});"
 
         return graph_string
 
