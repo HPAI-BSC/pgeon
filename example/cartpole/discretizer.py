@@ -27,6 +27,11 @@ class Angle(Enum):
     STABILIZING_RIGHT = auto()
 
 
+class Action(Enum):
+    LEFT = 0
+    RIGHT = 1
+
+
 class CartpoleDiscretizer(Discretizer):
     def __init__(self):
         super(CartpoleDiscretizer, self).__init__()
@@ -107,3 +112,13 @@ class CartpoleDiscretizer(Discretizer):
                     if amount_of_equals_to_og <= 1:
                         yield Predicate(Position, [e]), Predicate(Velocity, [f]), Predicate(Angle, [g])
 
+    def all_actions(self):
+        return [Action.LEFT, Action.RIGHT]
+
+    def get_predicate_space(self):
+        all_tuples = []
+        for p in Position:
+            for v in Velocity:
+                for a in Angle:
+                    all_tuples.append((p, v, a))
+        return all_tuples

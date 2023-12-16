@@ -3,6 +3,7 @@ from enum import Enum, auto
 from typing import Optional, DefaultDict, Tuple, Any, List, Union, Set
 import csv
 import pickle
+import random
 
 import gymnasium as gym
 import networkx as nx
@@ -78,7 +79,7 @@ class PolicyGraph(nx.MultiDiGraph):
                 freq = int(freq)
 
                 pg.add_edge(node_info[node_from]['value'], node_info[node_to]['value'], key=action,
-                            frequency=freq, probability=prob)
+                            frequency=freq, probability=prob, action=action)
 
         pg._is_fit = True
         return pg
@@ -173,7 +174,7 @@ class PolicyGraph(nx.MultiDiGraph):
         while (pointer + 1) < len(trajectory):
             state_from, action, state_to = trajectory[pointer:pointer + 3]
             if not self.has_edge(state_from, state_to, key=action):
-                self.add_edge(state_from, state_to, key=action, frequency=0)
+                self.add_edge(state_from, state_to, key=action, frequency=0, action=action)
             self[state_from][state_to][action]['frequency'] += 1
             pointer += 2
 
@@ -215,6 +216,90 @@ class PolicyGraph(nx.MultiDiGraph):
         self._is_fit = True
 
         return self
+
+    ######################
+    # EXPLANATIONS
+    ######################
+    def get_nearest_predicate(self, input_predicate: Tuple[Enum], verbose=False):
+        """ Returns the nearest predicate on the PG. If already exists, then we return the same predicate. If not,
+        then tries to change the predicate to find a similar state (Maximum change: 1 value).
+        If we don't find a similar state, then we return None
+
+        :param input_predicate: Existent or non-existent predicate in the PG
+        :return: Nearest predicate
+        :param verbose: Prints additional information
+        """
+        # Predicate exists in the MDP
+        if self.has_node(input_predicate):
+            if verbose:
+                print('NEAREST PREDICATE of existing predicate:', input_predicate)
+            return input_predicate
+        else:
+            if verbose:
+                print('NEAREST PREDICATE of NON existing predicate:', input_predicate)
+
+            predicate_space = self.discretizer.get_predicate_space()
+            # TODO: Implement distance function
+            new_pred = random.choice(predicate_space)
+            if verbose:
+                print('\tNEAREST PREDICATE in PG:', new_pred)
+            return new_pred
+
+    def get_possible_actions(self, predicate):
+        """ Given a predicate, get the possible actions and it's probabilities
+
+        3 cases:
+
+        - Predicate not in PG but similar predicate found in PG: Return actions of the similar predicate
+        - Predicate not in PG and no similar predicate found in PG: Return all actions same probability
+        - Predicate in MDP: Return actions of the predicate in PG
+
+        :param predicate: Existing or not existing predicate
+        :return: Action probabilities of a given state
+        """
+        result = defaultdict(float)
+
+        # Predicate not in PG
+        if predicate not in self.nodes():
+            # Nearest predicate not found -> Random action
+            if predicate is None:
+                result = {action: 1 / len(self.discretizer.all_actions()) for action in self.discretizer.all_actions()}
+                return sorted(result.items(), key=lambda x: x[1], reverse=True)
+
+            predicate = self.get_nearest_predicate(predicate)
+            if predicate is None:
+                result = {a: 1 / len(self.discretizer.all_actions()) for a in self.discretizer.all_actions()}
+                return list(result.items())
+
+        # Out edges with actions [(u, v, a), ...]
+        possible_actions = [(u, data['action'], v, data['probability'])
+                            for u, v, data in self.out_edges(predicate, data=True)]
+        """
+        for node in self.pg.nodes():
+            possible_actions = [(u, data['action'], v, data['weight'])
+                                for u, v, data in self.pg.out_edges(node, data=True)]
+            s = sum([w for _,_,_,w in possible_actions])
+            assert  s < 1.001 and s > 0.99, f'Error {s}'
+        """
+        # Drop duplicated edges
+        possible_actions = list(set(possible_actions))
+        # Predicate has at least 1 out edge.
+        if len(possible_actions) > 0:
+            for _, action, v, weight in possible_actions:
+                result[self.discretizer.all_actions()[action]] += weight
+            return sorted(result.items(), key=lambda x: x[1], reverse=True)
+        # Predicate does not have out edges. Then return all the actions with same probability
+        else:
+            result = {a: 1 / len(self.discretizer.all_actions()) for a in self.discretizer.all_actions()}
+            return list(result.items())
+
+    def question1(self, predicate, verbose=False):
+        possible_actions = self.get_possible_actions(predicate)
+        if verbose:
+            print('I will take one of these actions:')
+            for action, prob in possible_actions:
+                print('\t->', action.name, '\tProb:', round(prob * 100, 2), '%')
+        return possible_actions
 
     ######################
     # SERIALIZATION
@@ -310,7 +395,7 @@ class PolicyGraph(nx.MultiDiGraph):
     # gram format doesn't save the trajectories
     def save(self,
              format: str,
-             path: Union[str, List[str]])\
+             path: Union[str, List[str]]) \
             :
         if not self._is_fit:
             raise Exception('Policy Graph cannot be saved before fitting!')

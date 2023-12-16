@@ -52,3 +52,11 @@ class Discretizer(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def nearest_state(self, state):
         pass
+
+    @abc.abstractmethod
+    def all_actions(self):
+        pass
+
+    @abc.abstractmethod
+    def get_predicate_space(self):
+        pass
