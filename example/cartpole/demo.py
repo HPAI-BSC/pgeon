@@ -46,3 +46,7 @@ if __name__ == '__main__':
     print('I will take one of these actions:')
     for action, prob in possible_actions:
         print('\t->', action.name, '\tProb:', round(prob * 100, 2), '%')
+
+    best_states = pg.question2(0)
+    print(f'I will perform action {0} in these states:')
+    print('\n'.join([str(state) for state in best_states]))

@@ -301,6 +301,48 @@ class PolicyGraph(nx.MultiDiGraph):
                 print('\t->', action.name, '\tProb:', round(prob * 100, 2), '%')
         return possible_actions
 
+    def get_when_perform_action(self, action):
+        """ When do you perform action
+
+        :param action: Valid action
+        :return: Set of states that has an out edge with the given action
+        """
+        # Nodes where 'action' it's a possible action
+        # All the nodes that has the same action (It has repeated nodes)
+        all_nodes = [u for u, v, a in self.edges(data='action') if a == action]
+        # Drop all the repeated nodes
+        all_nodes = list(set(all_nodes))
+
+        # Nodes where 'action' it's the most probable action
+        all_edges = [list(self.out_edges(u, data=True)) for u in all_nodes]
+
+        all_best_actions = [
+            sorted([(u, data['action'], data['probability']) for u, v, data in edges], key=lambda x: x[2], reverse=True)[0]
+            for edges in all_edges]
+        best_nodes = [u for u, a, w in all_best_actions if a == action]
+
+        all_nodes.sort()
+        best_nodes.sort()
+        return all_nodes, best_nodes
+
+    def question2(self, action, verbose=False):
+        """
+        Answers the question: When do you perform action X?
+        """
+        if verbose:
+            print('*********************************')
+            print('* When do you perform action X?')
+            print('*********************************')
+
+        all_nodes, best_nodes = self.get_when_perform_action(action)
+        if verbose:
+            print(f"Most probable in {len(best_nodes)} states:")
+        for i in range(len(all_nodes)):
+            if i < len(best_nodes) and verbose:
+                print(f"\t-> {best_nodes[i]}")
+        # TODO: Extract common factors of resulting states
+        return best_nodes
+
     ######################
     # SERIALIZATION
     ######################

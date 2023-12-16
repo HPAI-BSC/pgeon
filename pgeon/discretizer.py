@@ -24,6 +24,12 @@ class Predicate:
     def __hash__(self):
         return hash(str(self))
 
+    def __lt__(self, other):
+        if not isinstance(other, Predicate):
+            raise ValueError
+        else:
+            return hash(self.predicate) < hash(other.predicate)
+
 
 class Discretizer(metaclass=abc.ABCMeta):
     @classmethod
