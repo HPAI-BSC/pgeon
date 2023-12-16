@@ -343,6 +343,92 @@ class PolicyGraph(nx.MultiDiGraph):
         # TODO: Extract common factors of resulting states
         return best_nodes
 
+    def get_most_probable_option(self, predicate, greedy=False, verbose=False):
+        if greedy:
+            nearest_predicate = self.get_nearest_predicate(predicate, verbose=verbose)
+            possible_actions = self.get_possible_actions(nearest_predicate)
+
+            # Possible actions always will have 1 element since  for each state we only save the best action
+            return possible_actions[0][0]
+        else:
+            nearest_predicate = self.get_nearest_predicate(predicate, verbose=verbose)
+            possible_actions = self.get_possible_actions(nearest_predicate)
+            possible_actions = sorted(possible_actions, key=lambda x: x[1])
+            return possible_actions[-1][0]
+
+    def substract_predicates(self, origin, destination):
+        """
+        Subtracts 2 predicates, getting only the values that are different
+
+        :param origin: Origin predicate
+        :type origin: Union[str, list]
+        :param destination: Destination predicate
+        :return dict: Dict with the different values
+        """
+        if type(origin) is str:
+            origin = origin.split('-')
+        if type(destination) is str:
+            destination = destination.split('-')
+
+        result = {}
+        for value1, value2 in zip(origin, destination):
+            if value1 != value2:
+                result[value1.predicate] = (value1, value2)
+        return result
+
+    def nearby_predicates(self, state, greedy=False, verbose=False):
+        """
+        Gets nearby states from state
+
+        :param verbose:
+        :param greedy:
+        :param state: State
+        :return: List of [Action, destination_state, difference]
+        """
+        outs = self.out_edges(state, data=True)
+        outs = [(u, d['action'], v, d['probability']) for u, v, d in outs]
+
+        result = [(self.get_most_probable_option(v, greedy=greedy, verbose=verbose),
+                   v,
+                   self.substract_predicates(u, v)
+                   ) for u, a, v, w in outs]
+
+        result = sorted(result, key=lambda x: x[1])
+        return result
+
+    def question3(self, predicate, action, greedy=False, verbose=False):
+        """
+        Answers the question: Why do you perform action X in state Y?
+        """
+        if verbose:
+            print('***********************************************')
+            print('* Why did not you perform X action in Y state?')
+            print('***********************************************')
+
+        if greedy:
+            mode = PGBasedPolicyMode.GREEDY
+        else:
+            mode = PGBasedPolicyMode.STOCHASTIC
+        pg_policy = PGBasedPolicy(self, mode)
+        best_action = pg_policy.act_upon_discretized_state(predicate)
+        result = self.nearby_predicates(predicate)
+        explanations = []
+
+        if verbose:
+            print('I would have chosen:', best_action)
+            print(f"I would have chosen {action} under the following conditions:")
+        for a, v, diff in result:
+            # Only if performs the input action
+            if a == action:
+                if verbose:
+                    print(f"Hypothetical state: {v}")
+                    for predicate_key,  predicate_value in diff.items():
+                        print(f"   Actual: {predicate_key} = {predicate_value[0]} -> Counterfactual: {predicate_key} = {predicate_value[1]}")
+                explanations.append(diff)
+        if len(explanations) == 0 and verbose:
+            print("\tI don't know where I would have ended up")
+        return explanations
+
     ######################
     # SERIALIZATION
     ######################
@@ -533,11 +619,7 @@ class PGBasedPolicy(Agent):
         else:
             raise NotImplementedError
 
-    def act(self,
-            state
-            ) -> Any:
-        predicate = self.pg.discretizer.discretize(state)
-
+    def act_upon_discretized_state(self, predicate):
         if self.pg.has_node(predicate) and len(self.pg[predicate]) > 0:
             action_prob_dist = self._get_action_probability_dist(predicate)
         else:
@@ -550,3 +632,10 @@ class PGBasedPolicy(Agent):
                 raise NotImplementedError
 
         return self._get_action(action_prob_dist)
+
+    def act(self,
+            state
+            ) -> Any:
+        predicate = self.pg.discretizer.discretize(state)
+        return self.act_upon_discretized_state(predicate)
+

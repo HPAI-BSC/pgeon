@@ -1,5 +1,5 @@
 import gymnasium as gym
-from example.cartpole.discretizer import CartpoleDiscretizer, Position, Velocity, Angle
+from example.cartpole.discretizer import CartpoleDiscretizer, Position, Velocity, Angle, Action
 from pgeon import Agent, Predicate
 from ray.rllib.algorithms.algorithm import Algorithm
 from pgeon import PolicyGraph
@@ -47,6 +47,16 @@ if __name__ == '__main__':
     for action, prob in possible_actions:
         print('\t->', action.name, '\tProb:', round(prob * 100, 2), '%')
 
-    best_states = pg.question2(0)
+    best_states = pg.question2(Action.LEFT.value)
     print(f'I will perform action {0} in these states:')
     print('\n'.join([str(state) for state in best_states]))
+
+    print(f'Supposing I was in the middle, moving right, with the pole standing upright, '
+          f'if I did not choose to move left was due to...')
+    counterfactuals = pg.question3((
+        Predicate(Position, [Position(Position.MIDDLE)]),
+        Predicate(Velocity, [Velocity(Velocity.RIGHT)]),
+        Predicate(Angle, [Angle(Angle.STANDING)])), Action.LEFT)
+    for ct in counterfactuals:
+        print(f'...{" and ".join([str(i[0]) + " -> " + str(i[1]) for i in ct.values()])}')
+
