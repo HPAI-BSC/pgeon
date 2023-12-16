@@ -80,6 +80,7 @@ class PolicyGraph(nx.MultiDiGraph):
                 pg.add_edge(node_info[node_from]['value'], node_info[node_to]['value'], key=action,
                             frequency=freq, probability=prob)
 
+        pg._is_fit = True
         return pg
 
     @staticmethod
@@ -123,6 +124,7 @@ class PolicyGraph(nx.MultiDiGraph):
                 pg._update_with_trajectory(trajectory)
                 pg._trajectories_of_last_fit.append(trajectory)
 
+        pg._is_fit = True
         return pg
 
     ######################
@@ -421,125 +423,3 @@ class PGBasedPolicy(Agent):
                 raise NotImplementedError
 
         return self._get_action(action_prob_dist)
-# class PolicyGraph2(nx.MultiDiGraph):
-#     def __init__(self, **attr):
-#         super().__init__(**attr)
-#
-#     def _run_episode(self,
-#                      agent: Agent,
-#                      environment,
-#                      discretizer: Discretizer,
-#                      max_steps_per_episode: Optional[int] = None,
-#                      seed: Optional[int] = None) -> DefaultDict[Tuple[Any, Any, Any], int]:
-#
-#         transition_frequencies = defaultdict(int)
-#
-#         observation = environment.reset(seed)
-#         done = False
-#
-#         step_counter = 0
-#         while not done:
-#             if max_steps_per_episode is not None and step_counter >= step_counter:
-#                 break
-#
-#             action = agent.act(observation)
-#
-#             previous_obs = observation
-#             observation, _, done, _ = environment.step(action)
-#
-#             transition_frequencies[
-#                 (discretizer.discretize(previous_obs), action, discretizer.discretize(observation))
-#             ] += 1
-#
-#             step_counter += 1
-#
-#         # Adds a transition to track the final state as visited
-#         transition_frequencies[(discretizer.discretize(observation), None, None)] += 1
-#
-#         return transition_frequencies
-#
-#     def _update_with_transition_frequencies(self,
-#                                             transition_frequencies: DefaultDict[Tuple[Any, Any, Any], int]):
-#
-#         # Create or update the nodes for all visited states
-#         for state_from, action, state_to in transition_frequencies:
-#             if not self.has_node(state_from):
-#                 self.add_node(state_from, frequency=0)
-#
-#             self.nodes[state_from]['frequency'] += transition_frequencies[(state_from, action, state_to)]
-#
-#         # Update edges
-#         for state_from, action, state_to in transition_frequencies:
-#             if action is not None and state_to is not None:
-#                 if not self.has_edge(state_from, state_to, key=action):
-#                     self.add_edge(state_from, state_to, key=action, frequency=0)
-#                 else:
-#                     self[state_from][state_to][action]['frequency'] += transition_frequencies[(state_from, action, state_to)]
-#
-#     def _normalize(self):
-#         weights = nx.get_node_attributes(self, 'frequency')
-#         total_frequency = sum([weights[k] for k in weights])
-#         nx.set_node_attributes(self, {k: weights[k] / total_frequency for k in weights}, 'probability')
-#
-#         for node in self.nodes:
-#             total_frequency = sum([self.get_edge_data(node, dest_node, action)['frequency']
-#                                    for dest_node in self[node]
-#                                    for action in self.get_edge_data(node, dest_node)])
-#             for dest_node in self[node]:
-#                 for action in self.get_edge_data(node, dest_node):
-#                     self[node][dest_node][action]['probability'] = \
-#                         self[node][dest_node][action]['frequency'] / total_frequency
-#
-#     def fit(self,
-#             agent: Agent,
-#             environment: Environment,
-#             discretizer: Discretizer,
-#             num_episodes: int = 1000,
-#             max_steps_per_episode: Optional[int] = None,
-#             update: bool = False,
-#             verbose: bool = False):
-#
-#         if update:
-#             self.clear()
-#
-#         for episode_i in range(num_episodes):
-#             if verbose:
-#                 print(f"Episode {episode_i+1}/{num_episodes}")
-#
-#             transition_frequencies = self._run_episode(agent, environment, discretizer, max_steps_per_episode)
-#             self._update_with_transition_frequencies(transition_frequencies)
-#
-#         self._normalize()
-#
-#         return self
-#
-#     def serialize(self,
-#                   path_to_nodes: str,
-#                   path_to_edges: str):
-#         path_to_nodes_includes_csv = path_to_nodes[-4:] == '.csv'
-#         path_to_edges_includes_csv = path_to_edges[-4:] == '.csv'
-#
-#         node_info = {
-#             node: {'id': i, 'value': str(node), 'p(s)': self.nodes[node]['probability']}
-#             for i, node in enumerate(self.nodes)
-#         }
-#         edge_info = []
-#         for edge in self.edges:
-#             n_from, n_to, action = edge
-#             edge_info.append({
-#                 'from': node_info[n_from]['id'],
-#                 'to': node_info[n_to]['id'],
-#                 'action': action,
-#                 "p(s'a|s)": self[n_from][n_to][action]['probability']
-#             })
-#
-#         with open(f'{path_to_nodes}{"" if path_to_nodes_includes_csv else ".csv"}', 'w+') as f:
-#             writer = csv.writer(f)
-#             writer.writerow(['id', 'value', 'p(s)'])
-#             for node in node_info:
-#                 writer.writerow([node_info[node]['id'], node_info[node]['value'], node_info[node]['p(s)']])
-#         with open(f'{path_to_edges}{"" if path_to_edges_includes_csv else ".csv"}', 'w+') as f:
-#             writer = csv.writer(f)
-#             writer.writerow(['from', 'to', 'action', "p(s'a|s)"])
-#             for edge in edge_info:
-#                 writer.writerow([edge['from'], edge['to'], edge['action'], edge["p(s'a|s)"]])
