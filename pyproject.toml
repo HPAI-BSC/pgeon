@@ -1,0 +1,43 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pgeon-xai"
+version = "1.0"
+dependencies = [
+  "gymnasium",
+  "networkx>=3.1",
+  "numpy>=1.24.4",
+  "tqdm>=4.66.1",
+  "jupyter",
+  "ray[rllib]>=2.8.1",
+  "torch",
+  "gymnasium[classic-control]",
+]
+requires-python = ">=3.8"
+authors = [
+  {name = "Adrian Tormos", email = "hpai@bsc.es"},
+  {name = "Victor Gimenez-Abalos", email = "hpai@bsc.es"},
+  {name = "Dmitry Gnatyshak", email = "hpai@bsc.es"},
+  {name = "Sergio Alvarez-Napagao", email = "hpai@bsc.es"},
+]
+maintainers = [
+  {name = "Adrian Tormos", email = "hpai@bsc.es"},
+  {name = "Sergio Alvarez-Napagao", email = "hpai@bsc.es"},
+]
+description = "pgeon-xai is a Python package that produces explanations for opaque agents using Policy Graphs (PGs)"
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["explainability", "reinforcement learning", "agents", "artificial intelligence", "policy graphs"]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python"
+]
+
+[project.urls]
+Homepage = "https://github.com/HPAI-BSC/pgeon-xai"
+Repository = "https://github.com/HPAI-BSC/pgeon-xai"
+"Bug Tracker" = "https://github.com/HPAI-BSC/pgeon-xai/issues"
+

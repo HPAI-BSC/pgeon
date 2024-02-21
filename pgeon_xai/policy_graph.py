@@ -10,8 +10,8 @@ import networkx as nx
 import numpy as np
 import tqdm
 
-from pgeon.agent import Agent
-from pgeon.discretizer import Discretizer
+from pgeon_xai.agent import Agent
+from pgeon_xai.discretizer import Discretizer
 
 
 class PolicyGraph(nx.MultiDiGraph):

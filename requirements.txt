@@ -1,4 +1,8 @@
-gymnasium==0.29.1
-networkx==3.1
-numpy==1.24.4
-tqdm==4.66.1
+gymnasium
+networkx>=3.1
+numpy>=1.24.4
+tqdm>=4.66.1
+jupyter
+ray[rllib]>=2.8.1
+torch
+gymnasium[classic-control]
