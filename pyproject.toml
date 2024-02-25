@@ -7,7 +7,7 @@ packages = ["pgeon"]
 
 [project]
 name = "pgeon-xai"
-version = "1.0"
+version = "1.0.1"
 dependencies = [
   "gymnasium",
   "networkx>=3.1",
