@@ -37,7 +37,7 @@ classifiers = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/HPAI-BSC/pgeon-xai"
-Repository = "https://github.com/HPAI-BSC/pgeon-xai"
-"Bug Tracker" = "https://github.com/HPAI-BSC/pgeon-xai/issues"
+Homepage = "https://github.com/HPAI-BSC/pgeon"
+Repository = "https://github.com/HPAI-BSC/pgeon"
+"Bug Tracker" = "https://github.com/HPAI-BSC/pgeon/issues"
 
