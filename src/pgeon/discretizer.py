@@ -1,14 +1,12 @@
 import abc
 from enum import Enum
-from typing import TypeVar, Sequence
-
-_Enum = TypeVar('_Enum', bound=Enum)
+from typing import Sequence, Type, Iterator
 
 
 class Predicate:
-    def __init__(self, predicate, value):
-        self.predicate: _Enum = predicate
-        self.value: Sequence[_Enum] = value
+    def __init__(self, predicate: Type[Enum], value: Sequence[Type[Enum]]):
+        self.predicate: Type[Enum] = predicate
+        self.value: Sequence[Type[Enum]] = value
 
     def __eq__(self, other):
         if not isinstance(other, Predicate):
@@ -16,7 +14,7 @@ class Predicate:
         return self.predicate == other.predicate and self.value == other.value
 
     def __str__(self):
-        return f'{self.predicate.__name__}({";".join(str(pred.name) for pred in self.value)})'
+        return f"{self.predicate.__name__}({';'.join(str(pred.name) for pred in self.value)})"
 
     def __repr__(self):
         return self.__str__()
@@ -34,14 +32,16 @@ class Predicate:
 class Discretizer(metaclass=abc.ABCMeta):
     @classmethod
     def __subclasshook__(cls, subclass):
-        return hasattr(subclass, 'discretize') \
-           and callable(subclass.discretize) \
-           and hasattr(subclass, 'state_to_str') \
-           and callable(subclass.state_to_str) \
-           and hasattr(subclass, 'str_to_state') \
-           and callable(subclass.str_to_state) \
-           and hasattr(subclass, 'nearest_state') \
-           and callable(subclass.nearest_state)
+        return (
+            hasattr(subclass, "discretize")
+            and callable(subclass.discretize)
+            and hasattr(subclass, "state_to_str")
+            and callable(subclass.state_to_str)
+            and hasattr(subclass, "str_to_state")
+            and callable(subclass.str_to_state)
+            and hasattr(subclass, "nearest_state")
+            and callable(subclass.nearest_state)
+        )
 
     @abc.abstractmethod
     def discretize(self, state):
@@ -56,13 +56,13 @@ class Discretizer(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def nearest_state(self, state):
+    def nearest_state(self, state) -> Iterator[Type[Enum]]:
         pass
 
     @abc.abstractmethod
-    def all_actions(self):
+    def all_actions(self) -> Sequence[Type[Enum]]:
         pass
 
     @abc.abstractmethod
-    def get_predicate_space(self):
+    def get_predicate_space(self) -> Sequence[Type[Enum]]:
         pass
