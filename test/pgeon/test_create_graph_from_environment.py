@@ -31,10 +31,6 @@ class TestCreateGraphFromEnvironment(unittest.TestCase):
              (Predicate(State, [State.THREE]), ),
              )
 
-        print(type(list(pg.nodes)[0]))
-        print(type(list(pg.nodes)[0][0]))
-        print(pg.nodes)
-
         self.assertIn(p[0], pg.nodes)
         self.assertIn(p[1], pg.nodes)
         self.assertIn(p[2], pg.nodes)
