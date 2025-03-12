@@ -2,8 +2,8 @@ import unittest
 
 import gymnasium
 
-from example.cartpole.discretizer import CartpoleDiscretizer, Position, Velocity, Angle
 from pgeon import PolicyGraph, Predicate
+from test.domain.cartpole import CartpoleDiscretizer, Position, Velocity, Angle
 
 
 class TestLoadGraphFromFile(unittest.TestCase):
@@ -84,7 +84,7 @@ class TestLoadGraphFromFile(unittest.TestCase):
         self.assertEqual(pg.nodes[p[2]]['frequency'], 45)
         self.assertEqual(pg.nodes[p[3]]['frequency'], 23)
 
-        # We forgot to add `normalize()` at the end of `from_nodes_and_trajectories()`
+        # TODO Bug: We forgot to add `normalize()` at the end of `from_nodes_and_trajectories()`
         # self.assertAlmostEqual(pg.nodes[p[0]]['probability'], 0.21569, delta=0.001)
         # self.assertAlmostEqual(pg.nodes[p[1]]['probability'], 0.33987, delta=0.001)
         # self.assertAlmostEqual(pg.nodes[p[2]]['probability'], 0.29412, delta=0.001)
