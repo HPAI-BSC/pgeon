@@ -12,9 +12,10 @@ import tqdm
 
 from pgeon.agent import Agent
 from pgeon.discretizer import Discretizer
+from pgeon.policy_approximator import PolicyApproximator
 
 
-class PolicyGraph(nx.MultiDiGraph):
+class PolicyGraph(PolicyApproximator, nx.MultiDiGraph):
     ######################
     # CREATION/LOADING
     ######################
