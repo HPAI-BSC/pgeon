@@ -1,6 +1,8 @@
 import abc
 from typing import List, Any, Collection, Optional, Union, Tuple
+from gymnasium import Env
 
+from pgeon.agent import Agent
 from pgeon.discretizer import Discretizer
 
 
@@ -134,12 +136,12 @@ class PolicyApproximator(abc.ABC):
 
 
 # From agent and environment
-class OnlinePolicyApproximator(abc.ABC, PolicyApproximator):
+class OnlinePolicyApproximator(PolicyApproximator):
     ...
 
 
 # From trajectories
-class OfflinePolicyApproximator(abc.ABC, PolicyApproximator):
+class OfflinePolicyApproximator(PolicyApproximator):
     ...
 
 
@@ -147,8 +149,8 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
     def __init__(self,
                  discretizer: Discretizer,
                  policy_representation: PolicyRepresentation,
-                 environment: "gym.Env",
-                 agent: "Agent"
+                 environment: Env,
+                 agent: Agent
                  ):
         super().__init__(discretizer, policy_representation)
         self.environment = environment
