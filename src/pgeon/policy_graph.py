@@ -15,7 +15,7 @@ from pgeon.discretizer import Discretizer
 from pgeon.policy_approximator import PolicyRepresentation, GraphRepresentation, PolicyApproximatorFromBasicObservation
 
 
-class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
+class PolicyGraph(PolicyApproximatorFromBasicObservation):
     ######################
     # CREATION/LOADING
     ######################
@@ -26,6 +26,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
         self.policy_representation = policy_representation
         self.environment = environment
         self.agent = agent
+        self.graph = nx.MultiDiGraph()
 
         self._is_fit = False
         self._trajectories_of_last_fit: List[List[Any]] = []
@@ -61,7 +62,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
                     "probability": state_prob,
                     "frequency": state_freq,
                 }
-                pg.add_node(
+                pg.graph.add_node(
                     node_info[int(state_id)]["value"],
                     probability=state_prob,
                     frequency=state_freq,
@@ -82,7 +83,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
                 prob = float(prob)
                 freq = int(freq)
 
-                pg.add_edge(
+                pg.graph.add_edge(
                     node_info[node_from]["value"],
                     node_info[node_to]["value"],
                     key=action,
@@ -176,47 +177,47 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
             trajectory[i] for i in range(len(trajectory)) if i % 2 == 0
         ]
         all_new_states_in_trajectory = {
-            state for state in set(states_in_trajectory) if not self.has_node(state)
+            state for state in set(states_in_trajectory) if not self.graph.has_node(state)
         }
-        self.add_nodes_from(all_new_states_in_trajectory, frequency=0)
+        self.graph.add_nodes_from(all_new_states_in_trajectory, frequency=0)
 
         state_frequencies = {
             s: states_in_trajectory.count(s) for s in set(states_in_trajectory)
         }
         for state in state_frequencies:
-            self.nodes[state]["frequency"] += state_frequencies[state]
+            self.graph.nodes[state]["frequency"] += state_frequencies[state]
 
         pointer = 0
         while (pointer + 1) < len(trajectory):
             state_from, action, state_to = trajectory[pointer : pointer + 3]
-            if not self.has_edge(state_from, state_to, key=action):
-                self.add_edge(
+            if not self.graph.has_edge(state_from, state_to, key=action):
+                self.graph.add_edge(
                     state_from, state_to, key=action, frequency=0, action=action
                 )
-            self[state_from][state_to][action]["frequency"] += 1
+            self.graph[state_from][state_to][action]["frequency"] += 1
             pointer += 2
 
     def _normalize(self):
-        weights = nx.get_node_attributes(self, "frequency")
+        weights = nx.get_node_attributes(self.graph, "frequency")
         total_frequency = sum([weights[state] for state in weights])
         nx.set_node_attributes(
-            self,
+            self.graph,
             {state: weights[state] / total_frequency for state in weights},
             "probability",
         )
 
-        for node in self.nodes:
+        for node in self.graph.nodes:
             total_frequency = sum(
                 [
-                    self.get_edge_data(node, dest_node, action)["frequency"]
-                    for dest_node in self[node]
-                    for action in self.get_edge_data(node, dest_node)
+                    self.graph.get_edge_data(node, dest_node, action)["frequency"]
+                    for dest_node in self.graph[node]
+                    for action in self.graph.get_edge_data(node, dest_node)
                 ]
             )
-            for dest_node in self[node]:
-                for action in self.get_edge_data(node, dest_node):
-                    self[node][dest_node][action]["probability"] = (
-                        self[node][dest_node][action]["frequency"] / total_frequency
+            for dest_node in self.graph[node]:
+                for action in self.graph.get_edge_data(node, dest_node):
+                    self.graph[node][dest_node][action]["probability"] = (
+                        self.graph[node][dest_node][action]["frequency"] / total_frequency
                     )
 
     def fit(
@@ -227,7 +228,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
         update: bool = False,
     ):
         if not update:
-            self.clear()
+            self.graph.clear()
             self._trajectories_of_last_fit = []
             self._is_fit = False
 
@@ -259,7 +260,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
         :param verbose: Prints additional information
         """
         # Predicate exists in the MDP
-        if self.has_node(input_predicate):
+        if self.graph.has_node(input_predicate):
             if verbose:
                 print("NEAREST PREDICATE of existing predicate:", input_predicate)
             return input_predicate
@@ -289,7 +290,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
         result = defaultdict(float)
 
         # Predicate not in PG
-        if predicate not in self.nodes():
+        if predicate not in self.graph.nodes():
             # Nearest predicate not found -> Random action
             if predicate is None:
                 result = {
@@ -309,7 +310,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
         # Out edges with actions [(u, v, a), ...]
         possible_actions = [
             (u, data["action"], v, data["probability"])
-            for u, v, data in self.out_edges(predicate, data=True)
+            for u, v, data in self.graph.out_edges(predicate, data=True)
         ]
         """
         for node in self.pg.nodes():
@@ -349,12 +350,12 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
         """
         # Nodes where 'action' it's a possible action
         # All the nodes that has the same action (It has repeated nodes)
-        all_nodes = [u for u, v, a in self.edges(data="action") if a == action]
+        all_nodes = [u for u, v, a in self.graph.edges(data="action") if a == action]
         # Drop all the repeated nodes
         all_nodes = list(set(all_nodes))
 
         # Nodes where 'action' it's the most probable action
-        all_edges = [list(self.out_edges(u, data=True)) for u in all_nodes]
+        all_edges = [list(self.graph.out_edges(u, data=True)) for u in all_nodes]
 
         all_best_actions = [
             sorted(
@@ -430,7 +431,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
         :param state: State
         :return: List of [Action, destination_state, difference]
         """
-        outs = self.out_edges(state, data=True)
+        outs = self.graph.out_edges(state, data=True)
         outs = [(u, d["action"], v, d["probability"]) for u, v, d in outs]
 
         result = [
@@ -491,16 +492,16 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
             node: {
                 "id": i,
                 "value": self.discretizer.state_to_str(node),
-                "probability": self.nodes[node]["probability"],
-                "frequency": self.nodes[node]["frequency"],
+                "probability": self.graph.nodes[node]["probability"],
+                "frequency": self.graph.nodes[node]["frequency"],
             }
-            for i, node in enumerate(self.nodes)
+            for i, node in enumerate(self.graph.nodes)
         }
         # Get all unique actions in the PG
         action_info = {
             action: {"id": i, "value": str(action)}
             for i, action in enumerate(
-                set(action for _, _, action in self.edges(data=True))
+                set(action for _, _, action in self.graph.edges(data=True))
             )
         }
 
@@ -519,7 +520,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
                 + "\n});"
             )
 
-        for edge in self.edges(data=True):
+        for edge in self.graph.edges(data=True):
             n_from, n_to, action = edge
             # TODO The identifier of an edge may need to be unique. Check and rework the action part of this if needed.
             graph_string += (
@@ -553,14 +554,14 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
         ) as f:
             csv_w = csv.writer(f)
             csv_w.writerow(["id", "value", "p(s)", "frequency"])
-            for elem_position, node in enumerate(self.nodes):
+            for elem_position, node in enumerate(self.graph.nodes):
                 node_ids[node] = elem_position
                 csv_w.writerow(
                     [
                         elem_position,
                         self.discretizer.state_to_str(node),
-                        self.nodes[node]["probability"],
-                        self.nodes[node]["frequency"],
+                        self.graph.nodes[node]["probability"],
+                        self.graph.nodes[node]["frequency"],
                     ]
                 )
 
@@ -569,15 +570,15 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
         ) as f:
             csv_w = csv.writer(f)
             csv_w.writerow(["from", "to", "action", "p(s)", "frequency"])
-            for edge in self.edges(data=True):
+            for edge in self.graph.edges(data=True):
                 state_from, state_to, action = edge
                 csv_w.writerow(
                     [
                         node_ids[state_from],
                         node_ids[state_to],
                         action,
-                        self[state_from][state_to][action]["probability"],
-                        self[state_from][state_to][action]["frequency"],
+                        self.graph[state_from][state_to][action]["probability"],
+                        self.graph[state_from][state_to][action]["frequency"],
                     ]
                 )
 
@@ -660,9 +661,9 @@ class PGBasedPolicy(Agent):
     def _get_all_possible_actions(self) -> Set[Any]:
         all_possible_actions = set()
 
-        for node_from in self.pg:
-            for node_to in self.pg[node_from]:
-                for action in self.pg[node_from][node_to]:
+        for node_from in self.pg.graph:
+            for node_to in self.pg.graph[node_from]:
+                for action in self.pg.graph[node_from][node_to]:
                     all_possible_actions.add(action)
 
         return all_possible_actions
@@ -671,9 +672,9 @@ class PGBasedPolicy(Agent):
         # Precondition: self.pg.has_node(predicate) and len(self.pg[predicate]) > 0:
 
         action_weights = defaultdict(lambda: 0)
-        for dest_node in self.pg[predicate]:
-            for action in self.pg[predicate][dest_node]:
-                action_weights[action] += self.pg[predicate][dest_node][action][
+        for dest_node in self.pg.graph[predicate]:
+            for action in self.pg.graph[predicate][dest_node]:
+                action_weights[action] += self.pg.graph[predicate][dest_node][action][
                     "probability"
                 ]
 
@@ -681,7 +682,7 @@ class PGBasedPolicy(Agent):
         return action_weights
 
     def _is_predicate_in_pg_and_usable(self, predicate) -> bool:
-        return self.pg.has_node(predicate) and len(self.pg[predicate]) > 0
+        return self.pg.graph.has_node(predicate) and len(self.pg.graph[predicate]) > 0
 
     def _get_nearest_predicate(self, predicate: Type[Enum]):
         nearest_state_generator = self.pg.discretizer.nearest_state(predicate)
@@ -705,7 +706,7 @@ class PGBasedPolicy(Agent):
             raise NotImplementedError
 
     def act_upon_discretized_state(self, predicate):
-        if self.pg.has_node(predicate) and len(self.pg[predicate]) > 0:
+        if self.pg.graph.has_node(predicate) and len(self.pg.graph[predicate]) > 0:
             action_prob_dist = self._get_action_probability_dist(predicate)
         else:
             if self.node_not_found_mode == PGBasedPolicyNodeNotFoundMode.RANDOM_UNIFORM:
