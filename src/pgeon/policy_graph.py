@@ -12,18 +12,19 @@ import tqdm
 
 from pgeon.agent import Agent
 from pgeon.discretizer import Discretizer
-from pgeon.policy_approximator import PolicyApproximator
+from pgeon.policy_approximator import PolicyRepresentation, GraphRepresentation, PolicyApproximatorFromBasicObservation
 
 
-class PolicyGraph(PolicyApproximator, nx.MultiDiGraph):
+class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
     ######################
     # CREATION/LOADING
     ######################
 
-    def __init__(self, environment: gym.Env, discretizer: Discretizer):
-        super().__init__()
+    def __init__(self, discretizer: Discretizer, policy_representation: PolicyRepresentation, environment: gym.Env, agent: Agent):
+        super().__init__(discretizer, policy_representation, environment, agent)
         self.environment = environment
         self.discretizer = discretizer
+        self.agent = agent
 
         self._is_fit = False
         self._trajectories_of_last_fit: List[List[Any]] = []
@@ -38,7 +39,7 @@ class PolicyGraph(PolicyApproximator, nx.MultiDiGraph):
     def from_nodes_and_edges(
         path_nodes: str, path_edges: str, environment: gym.Env, discretizer: Discretizer
     ):
-        pg = PolicyGraph(environment, discretizer)
+        pg = PolicyGraph(environment, GraphRepresentation(), discretizer, agent=None)
 
         path_to_nodes_includes_csv = path_nodes[-4:] == ".csv"
         path_to_edges_includes_csv = path_edges[-4:] == ".csv"
@@ -99,7 +100,7 @@ class PolicyGraph(PolicyApproximator, nx.MultiDiGraph):
         environment: gym.Env,
         discretizer: Discretizer,
     ):
-        pg = PolicyGraph(environment, discretizer)
+        pg = PolicyGraph(environment, GraphRepresentation(), discretizer, agent=None)
 
         path_to_nodes_includes_csv = path_nodes[-4:] == ".csv"
         path_to_trajs_includes_csv = path_trajectories[-4:] == ".csv"
