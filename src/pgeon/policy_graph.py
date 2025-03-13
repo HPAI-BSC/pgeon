@@ -22,8 +22,9 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
 
     def __init__(self, discretizer: Discretizer, policy_representation: PolicyRepresentation, environment: gym.Env, agent: Agent):
         super().__init__(discretizer, policy_representation, environment, agent)
-        self.environment = environment
         self.discretizer = discretizer
+        self.policy_representation = policy_representation
+        self.environment = environment
         self.agent = agent
 
         self._is_fit = False
@@ -39,7 +40,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
     def from_nodes_and_edges(
         path_nodes: str, path_edges: str, environment: gym.Env, discretizer: Discretizer
     ):
-        pg = PolicyGraph(environment, GraphRepresentation(), discretizer, agent=None)
+        pg = PolicyGraph(discretizer, GraphRepresentation(), environment, agent=None)
 
         path_to_nodes_includes_csv = path_nodes[-4:] == ".csv"
         path_to_edges_includes_csv = path_edges[-4:] == ".csv"
@@ -100,7 +101,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation, nx.MultiDiGraph):
         environment: gym.Env,
         discretizer: Discretizer,
     ):
-        pg = PolicyGraph(environment, GraphRepresentation(), discretizer, agent=None)
+        pg = PolicyGraph(discretizer, GraphRepresentation(), environment, agent=None)
 
         path_to_nodes_includes_csv = path_nodes[-4:] == ".csv"
         path_to_trajs_includes_csv = path_trajectories[-4:] == ".csv"

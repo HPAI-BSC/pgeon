@@ -1,16 +1,16 @@
 import unittest
 
-from pgeon import PolicyGraph, Predicate
+from pgeon import PolicyGraph, Predicate, GraphRepresentation
 from test.domain.test_env import TestingEnv, TestingDiscretizer, TestingAgent, State
-
 
 class TestCreateGraphFromEnvironment(unittest.TestCase):
     env = TestingEnv()
     discretizer = TestingDiscretizer()
+    policy_representation = GraphRepresentation()
     agent = TestingAgent()
 
     def test_initialize_pg(self):
-        pg: PolicyGraph = PolicyGraph(self.env, self.discretizer)
+        pg: PolicyGraph = PolicyGraph(self.env, self.policy_representation, self.discretizer, self.agent)
 
         self.assertEqual(pg.discretizer, self.discretizer)
         self.assertEqual(pg.environment, self.env)
@@ -18,7 +18,7 @@ class TestCreateGraphFromEnvironment(unittest.TestCase):
         self.assertEqual(pg._trajectories_of_last_fit, [])
 
     def test_fit_from_agent_and_env(self):
-        pg: PolicyGraph = PolicyGraph(self.env, self.discretizer)
+        pg: PolicyGraph = PolicyGraph(self.env, self.policy_representation, self.discretizer, self.agent)
         pg.fit(self.agent, num_episodes=1)
 
         self.assertEqual(pg._is_fit, True)
