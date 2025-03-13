@@ -132,52 +132,12 @@ class PolicyApproximator(abc.ABC):
         self.policy_represenation: PolicyRepresentation = policy_representation
 
     @abc.abstractmethod
-    def fit(self):
-        ...
-
-    @abc.abstractmethod
-    def get_nearest_predicate(self, input_predicate: Tuple[Enum], verbose: bool = False):
-        """Returns the nearest predicate. If already exists, returns same predicate."""
-        ...
-
-    @abc.abstractmethod
-    def get_possible_actions(self, predicate):
-        """Get possible actions and probabilities for a predicate"""
-        ... 
-
-    @abc.abstractmethod
-    def get_when_perform_action(self, action):
-        """When do you perform action X?"""
-        ...
-
-    @abc.abstractmethod
-    def question2(self, action, verbose: bool = False):
-        """When do you perform action X?"""
-        ...
-
-    @abc.abstractmethod
-    def substract_predicates(self, origin, destination):
-        """Subtracts 2 predicates, getting only different values"""
-        ...
-
-    @abc.abstractmethod
-    def nearby_predicates(self, state, greedy: bool = False, verbose: bool = False):
-        """Gets nearby states from state"""
-        ...
-
-    @abc.abstractmethod
-    def question3(self, predicate, action, greedy: bool = False, verbose: bool = False):
-        """Why do you perform action X in state Y?"""
-        ...
-
-    @abc.abstractmethod
-    def get_most_probable_option(self, predicate, greedy: bool = False, verbose: bool = False):
-        """Get most probable action for a predicate"""
-        ...
-
-    @abc.abstractmethod
     def save(self, format: str, path: Union[str, List[str]]):
         """Save the policy approximator"""
+        ...
+
+    @abc.abstractmethod
+    def fit(self):
         ...
 
 
@@ -227,12 +187,43 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
                 # episode_trajectory.extend([action, discretized_next_state])
 
                 discretized_state = discretized_next_state
-
-            # TODO self.policy_represenation.update_representation(episode_trajectory)
+                # TODO self.policy_represenation.update_representation(episode_trajectory)
             # TODO Current pgeon version stores the episode trajectory (discretized states).
             #      Consider whether we want to keep doing that.
 
-        # TODO May `self.policy_representation` perform any post-process?
+            # TODO May `self.policy_representation` perform any post-process?
+
+    def get_nearest_predicate(self, input_predicate: Tuple[Enum], verbose: bool = False):
+        """Returns the nearest predicate. If already exists, returns same predicate."""
+        raise NotImplementedError()
+
+    def get_possible_actions(self, predicate):
+        """Get possible actions and probabilities for a predicate"""
+        raise NotImplementedError()
+
+    def get_when_perform_action(self, action):
+        """When do you perform action X?"""
+        raise NotImplementedError()
+
+    def question2(self, action, verbose: bool = False):
+        """When do you perform action X?"""
+        raise NotImplementedError()
+
+    def substract_predicates(self, origin, destination):
+        """Subtracts 2 predicates, getting only different values"""
+        raise NotImplementedError()
+
+    def nearby_predicates(self, state, greedy: bool = False, verbose: bool = False):
+        """Gets nearby states from state"""
+        raise NotImplementedError()
+
+    def question3(self, predicate, action, greedy: bool = False, verbose: bool = False):
+        """Why do you perform action X in state Y?"""
+        raise NotImplementedError()
+
+    def get_most_probable_option(self, predicate, greedy: bool = False, verbose: bool = False):
+        """Get most probable action for a predicate"""
+        raise NotImplementedError()
 
 
 class InterventionalPGConstruction(PolicyApproximator):
