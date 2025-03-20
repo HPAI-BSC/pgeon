@@ -29,6 +29,13 @@ class Predicate:
             return hash(self.predicate) < hash(other.predicate)
 
 
+class StateRepresentation:
+    ...
+
+
+class PredicateBasedStateRepresentation(StateRepresentation):
+    ...
+
 class Discretizer(metaclass=abc.ABCMeta):
     @classmethod
     def __subclasshook__(cls, subclass):
