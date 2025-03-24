@@ -18,17 +18,8 @@ import networkx as nx
 
 from pgeon.discretizer import Discretizer, StateRepresentation, Action
 
-# Define generic types for better type hinting
-S = TypeVar("S", bound=StateRepresentation)
-A = TypeVar("A", bound=Action)
 
-
-class ProbabilityQuery:
-    """
-    A class representing a probability query for policy representations.
-    """
-
-    pass  # Add implementation details as needed
+class ProbabilityQuery: ...
 
 
 class IntentionMixin: ...
