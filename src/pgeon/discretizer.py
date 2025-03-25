@@ -1,8 +1,7 @@
 import abc
 from enum import Enum
-from typing import Sequence, Type, Iterator
+from typing import Sequence, Type, Iterator, Collection, Union
 from dataclasses import dataclass
-from typing import Collection
 
 
 class Predicate:
@@ -31,11 +30,22 @@ class Predicate:
             return hash(self.predicate) < hash(other.predicate)
 
 
-@dataclass(frozen=True)
-class StateRepresentation:
+class StateRepresentation(abc.ABC):
     predicates: Collection[Predicate]
 
-    def __eq__(self, other):
+    @abc.abstractmethod
+    def __eq__(self, other: 'StateRepresentation') -> bool: ...
+
+    @abc.abstractmethod
+    def __hash__(self) -> int: ...
+
+
+
+@dataclass(frozen=True)
+class PredicateBasedStateRepresentation(StateRepresentation):
+    predicates: Collection[Predicate]
+
+    def __eq__(self, other: Union['PredicateBasedStateRepresentation', tuple[Predicate, ...]]) -> bool:
         # If comparing with a tuple, convert the tuple to a list for comparison
         if isinstance(other, tuple):
             # Compare the predicates with the tuple items
@@ -58,10 +68,6 @@ class StateRepresentation:
 
 # Action type
 Action = int
-
-
-class PredicateBasedStateRepresentation(StateRepresentation): ...
-
 
 class Discretizer(metaclass=abc.ABCMeta):
     @classmethod
