@@ -9,11 +9,7 @@ from typing import (
     TypeVar,
     cast,
     List,
-    Mapping,
-    Set,
-    Union,
 )
-
 import networkx as nx
 
 from pgeon.discretizer import Discretizer, StateRepresentation, Action
@@ -283,13 +279,13 @@ class GraphRepresentation(PolicyRepresentation):
         ) -> bool:
             return self._nx_graph.has_edge(node_from, node_to, key)
 
-        def nodes(self, data: bool = False) -> Iterator:
+        def nodes(self, data: bool = False) -> nx.reportviews.NodeView:
             return self._nx_graph.nodes(data=data)
 
-        def edges(self, data: bool = False) -> Iterator:
+        def edges(self, data: bool = False) -> nx.reportviews.OutMultiEdgeView:
             return self._nx_graph.edges(data=data)
 
-        def out_edges(self, node: StateRepresentation, data: bool = False) -> Iterator:
+        def out_edges(self, node: StateRepresentation, data: bool = False) -> nx.reportviews.OutMultiEdgeView:
             return self._nx_graph.out_edges(node, data=data)
 
         def clear(self) -> None:
