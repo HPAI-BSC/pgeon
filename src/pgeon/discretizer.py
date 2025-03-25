@@ -66,7 +66,7 @@ class PredicateBasedStateRepresentation(StateRepresentation):
         return hash(tuple(self.predicates))
 
 
-# Action type
+# TODO: allow for more complex representations
 Action = int
 
 class Discretizer(metaclass=abc.ABCMeta):
