@@ -17,10 +17,18 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.discretizer = TestingDiscretizer()
 
         # Create states and actions for testing
-        self.state0 = PredicateBasedStateRepresentation((Predicate(State, [State.ZERO]),))
-        self.state1 = PredicateBasedStateRepresentation((Predicate(State, [State.ONE]),))
-        self.state2 = PredicateBasedStateRepresentation((Predicate(State, [State.TWO]),))
-        self.state3 = PredicateBasedStateRepresentation((Predicate(State, [State.THREE]),))
+        self.state0 = PredicateBasedStateRepresentation(
+            (Predicate(State, [State.ZERO]),)
+        )
+        self.state1 = PredicateBasedStateRepresentation(
+            (Predicate(State, [State.ONE]),)
+        )
+        self.state2 = PredicateBasedStateRepresentation(
+            (Predicate(State, [State.TWO]),)
+        )
+        self.state3 = PredicateBasedStateRepresentation(
+            (Predicate(State, [State.THREE]),)
+        )
 
         self.action0: Action = 0
         self.representation = GraphRepresentation()
@@ -80,7 +88,7 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertEqual(transition_data["action"], self.action0)
 
         # Add multiple transitions
-        transitions= [
+        transitions = [
             (self.state1, self.state2, self.action0),
             (self.state2, self.state3, self.action0),
             (self.state3, self.state0, self.action0),
@@ -256,12 +264,16 @@ class TestPolicyRepresentation(unittest.TestCase):
         )
 
         obs, _ = env.reset()
-        initial_state = PredicateBasedStateRepresentation(self.discretizer.discretize(obs))
+        initial_state = PredicateBasedStateRepresentation(
+            self.discretizer.discretize(obs)
+        )
         self.assertEqual(initial_state, self.state0)
 
         state = initial_state
         next_obs, _, _, _, _ = env.step(self.action0)
-        next_state = PredicateBasedStateRepresentation(self.discretizer.discretize(next_obs))
+        next_state = PredicateBasedStateRepresentation(
+            self.discretizer.discretize(next_obs)
+        )
 
         self.assertTrue(
             self.representation.has_transition(state, next_state, self.action0)

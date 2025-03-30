@@ -131,18 +131,16 @@ class PolicyRepresentation(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_all_transitions(self, include_data: bool = False) -> Collection[
-            Tuple[StateRepresentation, StateRepresentation, Dict[str, Any]],
-    ]:
+    def get_all_transitions(
+        self, include_data: bool = False
+    ) -> Collection[Tuple[StateRepresentation, StateRepresentation, Dict[str, Any]],]:
         """Get all transitions, optionally including associated data."""
         ...
 
     @abc.abstractmethod
     def get_outgoing_transitions(
         self, state: StateRepresentation, include_data: bool = False
-    ) -> Collection[
-            Tuple[StateRepresentation, StateRepresentation, Dict[str, Any]],
-    ]:
+    ) -> Collection[Tuple[StateRepresentation, StateRepresentation, Dict[str, Any]],]:
         """Get all transitions originating from a state."""
         ...
 
@@ -284,7 +282,9 @@ class GraphRepresentation(PolicyRepresentation):
         def edges(self, data: bool = False) -> nx.reportviews.OutMultiEdgeView:
             return self._nx_graph.edges(data=data)
 
-        def out_edges(self, node: StateRepresentation, data: bool = False) -> nx.reportviews.OutMultiEdgeView:
+        def out_edges(
+            self, node: StateRepresentation, data: bool = False
+        ) -> nx.reportviews.OutMultiEdgeView:
             return self._nx_graph.out_edges(node, data=data)
 
         def clear(self) -> None:
@@ -298,11 +298,10 @@ class GraphRepresentation(PolicyRepresentation):
         super().__init__()
         # p(s) and p(s',a | s)
         self.graph: GraphRepresentation.Graph
-        match graph_backend:
-            case "networkx":
-                self.graph = GraphRepresentation.NetworkXGraph()
-            case _:
-                raise NotImplementedError
+        if graph_backend == "networkx":
+            self.graph = GraphRepresentation.NetworkXGraph()
+        else:
+            raise NotImplementedError(f"Graph backend {graph_backend} not implemented")
 
     def prob(self, query: ProbabilityQuery) -> float:
         """Calculate probability for a given query."""
