@@ -1,9 +1,7 @@
 import unittest
-from typing import Dict, Any, Tuple, cast, Optional, List
+from typing import Dict, Tuple, List
 
 import networkx as nx
-import numpy as np
-from torch import P
 
 from pgeon import GraphRepresentation, Predicate
 from test.domain.test_env import State, TestingDiscretizer, TestingEnv

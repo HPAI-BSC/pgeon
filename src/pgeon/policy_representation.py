@@ -6,7 +6,6 @@ from typing import (
     Any,
     Dict,
     Iterator,
-    TypeVar,
     cast,
     List,
 )
