@@ -1,12 +1,13 @@
 import abc
 from enum import Enum
-from typing import Sequence, Type, Iterator
+from typing import Sequence, Type, Iterator, Collection, Union
+from dataclasses import dataclass
 
 
 class Predicate:
-    def __init__(self, predicate: Type[Enum], value: Sequence[Type[Enum]]):
+    def __init__(self, predicate: Type[Enum], value: Sequence[Enum]):
         self.predicate: Type[Enum] = predicate
-        self.value: Sequence[Type[Enum]] = value
+        self.value: Sequence[Enum] = value
 
     def __eq__(self, other):
         if not isinstance(other, Predicate):
@@ -28,6 +29,45 @@ class Predicate:
         else:
             return hash(self.predicate) < hash(other.predicate)
 
+
+class StateRepresentation(abc.ABC):
+    predicates: Collection[Predicate]
+
+    @abc.abstractmethod
+    def __eq__(self, other: 'StateRepresentation') -> bool: ...
+
+    @abc.abstractmethod
+    def __hash__(self) -> int: ...
+
+
+
+@dataclass(frozen=True)
+class PredicateBasedStateRepresentation(StateRepresentation):
+    predicates: Collection[Predicate]
+
+    def __eq__(self, other: Union['PredicateBasedStateRepresentation', tuple[Predicate, ...]]) -> bool:
+        # If comparing with a tuple, convert the tuple to a list for comparison
+        if isinstance(other, tuple):
+            # Compare the predicates with the tuple items
+            if len(self.predicates) != len(other):
+                return False
+            return all(p1 == p2 for p1, p2 in zip(self.predicates, other))
+
+        # If comparing with another StateRepresentation
+        if isinstance(other, StateRepresentation):
+            # If both are StateRepresentation, compare their predicates
+            if len(self.predicates) != len(other.predicates):
+                return False
+            return all(p1 == p2 for p1, p2 in zip(self.predicates, other.predicates))
+
+        return False
+
+    def __hash__(self):
+        return hash(tuple(self.predicates))
+
+
+# TODO: allow for more complex representations
+Action = int
 
 class Discretizer(metaclass=abc.ABCMeta):
     @classmethod

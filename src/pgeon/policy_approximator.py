@@ -4,7 +4,8 @@ from gymnasium import Env
 from enum import Enum
 
 from pgeon.agent import Agent
-from pgeon.discretizer import Discretizer
+from pgeon.discretizer import Discretizer, StateRepresentation
+from pgeon.policy_representation import PolicyRepresentation
 
 
 class Base:
@@ -24,19 +25,9 @@ class Base:
 # INTENTIONAL POLICY GRAPHS = BASE POLICY GRAPH + INTENTION FUNCTIONALITY
 
 
-class StateRepresentation:
-    ...
-
-
-class PredicateBasedStateRepresentation(StateRepresentation):
-    ...
 
 
 class Desire:
-    ...
-
-
-class IntentionMixin:
     ...
 
 
@@ -45,81 +36,6 @@ class ProbabilityQuery:
 
 
 class Action:
-    ...
-
-
-class PolicyRepresentation(abc.ABC):
-    def __init__(self):
-        self._discretizer: Discretizer
-
-    @staticmethod
-    @abc.abstractmethod
-    def load(path: str) -> "PolicyRepresentation":
-        ...
-
-    @abc.abstractmethod
-    def save(self, ext: str, path: str):
-        ...
-
-    @abc.abstractmethod
-    def get_possible_actions(self, state: StateRepresentation) -> Collection[Action]:
-        ...
-
-    @abc.abstractmethod
-    def get_possible_next_states(self, state: StateRepresentation, action: Optional[Action] = None) -> Collection[StateRepresentation]:
-        ...
-
-
-class GraphRepresentation(PolicyRepresentation):
-
-    # Prolly not needed as actual classes
-    # class Node:
-    #     ...
-    #
-    # class Edge:
-    #     ...
-
-    # Package-agnostic
-    class Graph(abc.ABC):
-        ...
-
-    def __init__(self, graph_backend: str = "networkx"):
-        super().__init__()
-        # p(s) and p(s',a | s)
-        self.graph: GraphRepresentation.Graph
-        match graph_backend:
-            case "networkx":
-                self.graph = ...
-            case _:
-                raise NotImplementedError
-
-    def prob(self, query: ProbabilityQuery) -> float:
-        ...
-
-    # This refers to getting all states present in graph. Some representations may not be able to iterate over
-    #   all states.
-    def get_states_in_graph(self) -> Collection[StateRepresentation]:
-        ...
-
-    def get_possible_actions(self, state: StateRepresentation) -> Collection[Action]:
-        ...
-
-    def get_possible_next_states(self, state: StateRepresentation, action: Optional[Action] = None) -> Collection[StateRepresentation]:
-        ...
-
-    # minimum P(s',a|p) forall possible probs.
-    def get_overall_minimum_state_transition_probability(self) -> float:
-        ...
-
-    @staticmethod
-    def load(path: str) -> "PolicyRepresentation":
-        pass
-
-    def save(self, ext: str, path: str):
-        pass
-
-
-class IntentionalPG(Base, GraphRepresentation, IntentionMixin):
     ...
 
 
@@ -180,13 +96,13 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
             while not episode_done:
                 action = self.agent.act(state)
 
-                next_state, _, episode_done, _ = self.environment.step(action)
+                # next_state, _, episode_done, _ = self.environment.step(action)
 
-                discretized_next_state = self.discretizer.discretize(next_state)
-                episode_trajectory.append((discretized_state, action, discretized_next_state))
+                # discretized_next_state = self.discretizer.discretize(next_state)
+                # episode_trajectory.append((discretized_state, action, discretized_next_state))
                 # episode_trajectory.extend([action, discretized_next_state])
 
-                discretized_state = discretized_next_state
+                # discretized_state = discretized_next_state
                 # TODO self.policy_represenation.update_representation(episode_trajectory)
             # TODO Current pgeon version stores the episode trajectory (discretized states).
             #      Consider whether we want to keep doing that.

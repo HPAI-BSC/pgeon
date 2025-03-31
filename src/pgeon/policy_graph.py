@@ -12,7 +12,8 @@ import tqdm
 
 from pgeon.agent import Agent
 from pgeon.discretizer import Discretizer
-from pgeon.policy_approximator import PolicyRepresentation, GraphRepresentation, PolicyApproximatorFromBasicObservation
+from pgeon.policy_approximator import PolicyApproximatorFromBasicObservation
+from pgeon.policy_representation import PolicyRepresentation, GraphRepresentation
 
 
 class PolicyGraph(PolicyApproximatorFromBasicObservation):
@@ -526,7 +527,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation):
             graph_string += (
                 f'\nMATCH (s{node_info[n_from]["id"]}:State) WHERE s{node_info[n_from]["id"]}.uid = "s{node_info[n_from]["id"]}" MATCH (s{node_info[n_to]["id"]}:State) WHERE s{node_info[n_to]["id"]}.uid = "s{node_info[n_to]["id"]}" CREATE (s{node_info[n_from]["id"]})-[:a{action_info[action]["id"]} '
                 + "{"
-                + f"probability:{self[n_from][n_to][action]['probability']}, frequency:{self[n_from][n_to][action]['frequency']}"
+                + f"probability:{self.graph[n_from][n_to][action]['probability']}, frequency:{self.graph[n_from][n_to][action]['frequency']}"
                 + "}"
                 + f"]->(s{node_info[n_to]['id']});"
             )
