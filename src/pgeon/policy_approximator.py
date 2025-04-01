@@ -51,6 +51,10 @@ class OfflinePolicyApproximator(PolicyApproximator): ...
 
 
 class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
+    """
+    Policy approximator that approximates the policy from basic observations,
+    given an agent and an environment.
+    """
     def __init__(
         self,
         discretizer: Discretizer,
