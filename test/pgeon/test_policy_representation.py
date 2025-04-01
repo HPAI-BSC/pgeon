@@ -2,8 +2,8 @@ import unittest
 from typing import Dict, Tuple, List
 
 import networkx as nx
-from pgeon import GraphRepresentation, Predicate
 
+from pgeon import GraphRepresentation, Predicate
 from test.domain.test_env import State, TestingDiscretizer, TestingEnv
 from pgeon.discretizer import PredicateBasedStateRepresentation, StateRepresentation
 from pgeon.policy_representation import Action
