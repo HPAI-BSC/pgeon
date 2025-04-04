@@ -1,6 +1,21 @@
 # pgeon / pgeon-xai
 
-> Tormos, A., Abalos, V., Gnatyshak, D., & Alvarez-Napagao, S. (2023, October).  [Policy graphs in action: explaining single- and multi-agent behaviour using predicates](https://openreview.net/forum?id=QPqL9xsYOf). In _XAI in Action: Past, Present, and Future Applications_.
+<div align="center">
+  
+[![Paper](https://img.shields.io/badge/Paper-10.5555/3635637.3663299-f6c628.svg)](https://dl.acm.org/doi/10.5555/3635637.3663299)
+<br/>
+[![Website](https://img.shields.io/badge/Website-HPAI-8A2BE2.svg)](https://hpai.bsc.es)
+[![GitHub](https://img.shields.io/badge/GitHub-HPAI--BSC-%23121011.svg?logo=github&logoColor=white.svg)](https://github.com/HPAI-BSC)
+![GitHub Repo stars](https://img.shields.io/github/stars/HPAI-BSC/pgeon)
+![GitHub followers](https://img.shields.io/github/followers/HPAI-BSC)
+<br/>
+[![Huggingface](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-HPAI--BSC-ffc107?color=ffc107&logoColor=white.svg)](https://huggingface.co/HPAI-BSC)
+[![LinkedIn](https://img.shields.io/badge/Linkedin-HPAI--BSC-blue.svg)](https://www.linkedin.com/company/hpai)
+[![BlueSky](https://img.shields.io/badge/Bluesky-HPAI-0285FF?logo=bluesky&logoColor=fff.svg)](https://bsky.app/profile/hpai.bsky.social)
+[![LinkTree](https://img.shields.io/badge/Linktree-HPAI-43E55E?style=flat&logo=linktree&logoColor=white.svg)](https://linktr.ee/hpai_bsc)
+
+
+</div>
 
 **_pgeon_** (**_pgeon-xai_**) is a Python package that produces explanations for opaque agents using **Policy Graphs** (PGs).
 
@@ -60,12 +75,14 @@ To run the notebook yourself:
 
 If you use the **pgeon** library, please cite:
 
+> Tormos, A., Gimenez-Abalos, V., Vázquez-Salceda, J., & Alvarez-Napagao, S. (2024, May). [pgeon applied to Overcooked-AI to explain agents' behaviour](https://dl.acm.org/doi/10.5555/3635637.3663299). In _Proceedings of the 23rd International Conference on Autonomous Agents and Multiagent Systems_ (pp. 2821-2823).
+
 ```
-@inproceedings{tormos2023policy,
-  title={Policy graphs in action: explaining single-and multi-agent behaviour using predicates},
-  author={Tormos, Adrian and Abalos, Victor and Gnatyshak, Dmitry and Alvarez-Napagao, Sergio},
-  booktitle={XAI in Action: Past, Present, and Future Applications},
-  year={2023},
-  url={https://openreview.net/forum?id=QPqL9xsYOf}
+@inproceedings{tormos2024pgeon,
+  title={pgeon applied to {Overcooked-AI} to explain agents' behaviour},
+  author={Tormos, Adrian and Gimenez-Abalos, Victor and V{\'a}zquez-Salceda, Javier and Alvarez-Napagao, Sergio},
+  booktitle={Proceedings of the 23rd International Conference on Autonomous Agents and Multiagent Systems},
+  pages={2821--2823},
+  year={2024}
 }
 ```
