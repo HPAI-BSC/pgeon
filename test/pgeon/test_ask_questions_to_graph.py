@@ -3,6 +3,7 @@ import unittest
 import gymnasium
 
 from pgeon import PolicyGraph, Predicate
+from pgeon.discretizer import PredicateBasedStateRepresentation
 from test.domain.cartpole import CartpoleDiscretizer, Position, Velocity, Angle, Action
 
 
@@ -16,7 +17,7 @@ class TestAskQuestionsToGraph(unittest.TestCase):
 
     def test_question_1(self):
         result = self.pg_cartpole.question1(
-            (Predicate(Position, [Position.MIDDLE]), Predicate(Velocity, [Velocity.LEFT]), Predicate(Angle, [Angle.STABILIZING_RIGHT]))
+            PredicateBasedStateRepresentation((Predicate(Position, [Position.MIDDLE]), Predicate(Velocity, [Velocity.LEFT]), Predicate(Angle, [Angle.STABILIZING_RIGHT])))
         )
 
         self.assertEqual(len(result), 2)
@@ -43,7 +44,7 @@ class TestAskQuestionsToGraph(unittest.TestCase):
 
     def test_question_1_no_nearest_predicate(self):
         result = self.pg_cartpole.question1(
-            (Predicate(Position, [Position.RIGHT]), Predicate(Velocity, [Velocity.RIGHT]), Predicate(Angle, [Angle.STUCK_LEFT]))
+            PredicateBasedStateRepresentation((Predicate(Position, [Position.RIGHT]), Predicate(Velocity, [Velocity.RIGHT]), Predicate(Angle, [Angle.STUCK_LEFT])))
         )
 
         self.assertEqual(len(result), 2)
