@@ -1,8 +1,6 @@
-black
 gymnasium
 networkx>=3.1
 numpy>=1.24.4
-pre-commit
 tqdm>=4.66.1
 jupyter
 ray[rllib]>=2.8.1
