@@ -1,7 +1,7 @@
 from enum import Enum, auto
+from typing import Tuple
 
 import numpy as np
-from typing import Tuple
 
 from pgeon.discretizer import Discretizer, Predicate
 
@@ -36,9 +36,7 @@ class CartpoleDiscretizer(Discretizer):
     def __init__(self):
         super(CartpoleDiscretizer, self).__init__()
 
-    def discretize(self,
-                   state: np.ndarray
-                   ) -> Tuple[Predicate, Predicate, Predicate]:
+    def discretize(self, state: np.ndarray) -> Tuple[Predicate, Predicate, Predicate]:
         position, velocity, angle, ang_velocity = state
 
         if -2 < position < 2:
@@ -55,7 +53,7 @@ class CartpoleDiscretizer(Discretizer):
 
         stuck_velocity_thr = 0.1
         standing_angle_thr = 0.0005
-        pole_predicate = ''
+        pole_predicate = ""
         if -standing_angle_thr < angle < standing_angle_thr:
             pole_predicate = Angle.STANDING
         elif angle < 0 and -stuck_velocity_thr < ang_velocity < stuck_velocity_thr:
@@ -71,25 +69,27 @@ class CartpoleDiscretizer(Discretizer):
         elif angle > 0 and ang_velocity < 0:
             pole_predicate = Angle.STABILIZING_LEFT
 
-        return (Predicate(Position, [pos_predicate]),
-                Predicate(Velocity, [mov_predicate]),
-                Predicate(Angle, [pole_predicate]))
+        return (
+            Predicate(Position, [pos_predicate]),
+            Predicate(Velocity, [mov_predicate]),
+            Predicate(Angle, [pole_predicate]),
+        )
 
-    def state_to_str(self,
-                     state: Tuple[Predicate, Predicate, Predicate]
-                     ) -> str:
+    def state_to_str(self, state: Tuple[Predicate, Predicate, Predicate]) -> str:
 
-        return '&'.join(str(pred) for pred in state)
+        return "&".join(str(pred) for pred in state)
 
     def str_to_state(self, state: str):
-        pos, vel, angle = state.split('&')
-        pos_predicate = Position[pos[:-1].split('(')[1]]
-        mov_predicate = Velocity[vel[:-1].split('(')[1]]
-        pole_predicate = Angle[angle[:-1].split('(')[1]]
+        pos, vel, angle = state.split("&")
+        pos_predicate = Position[pos[:-1].split("(")[1]]
+        mov_predicate = Velocity[vel[:-1].split("(")[1]]
+        pole_predicate = Angle[angle[:-1].split("(")[1]]
 
-        return (Predicate(Position, [pos_predicate]),
-                Predicate(Velocity, [mov_predicate]),
-                Predicate(Angle, [pole_predicate]))
+        return (
+            Predicate(Position, [pos_predicate]),
+            Predicate(Velocity, [mov_predicate]),
+            Predicate(Angle, [pole_predicate]),
+        )
 
     def nearest_state(self, state):
         og_position, og_velocity, og_angle = state
@@ -107,10 +107,15 @@ class CartpoleDiscretizer(Discretizer):
         for e in Position:
             for f in Velocity:
                 for g in Angle:
-                    amount_of_equals_to_og = \
-                        int([e] == og_position.value) + int([f] == og_velocity.value) + int([g] == og_angle.value)
+                    amount_of_equals_to_og = (
+                        int([e] == og_position.value)
+                        + int([f] == og_velocity.value)
+                        + int([g] == og_angle.value)
+                    )
                     if amount_of_equals_to_og <= 1:
-                        yield Predicate(Position, [e]), Predicate(Velocity, [f]), Predicate(Angle, [g])
+                        yield Predicate(Position, [e]), Predicate(
+                            Velocity, [f]
+                        ), Predicate(Angle, [g])
 
     def all_actions(self):
         return [Action.LEFT, Action.RIGHT]

@@ -1,4 +1,4 @@
-from typing import Set, List, Dict, Optional
+from typing import Dict, List, Optional, Set
 
 from pgeon import PolicyGraph, Predicate
 from pgeon.desire import Desire
