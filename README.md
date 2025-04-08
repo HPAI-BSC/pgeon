@@ -1,7 +1,7 @@
 # pgeon / pgeon-xai
 
 <div align="center">
-  
+
 [![Paper](https://img.shields.io/badge/Paper-10.5555/3635637.3663299-f6c628.svg)](https://dl.acm.org/doi/10.5555/3635637.3663299)
 <br/>
 [![Website](https://img.shields.io/badge/Website-HPAI-8A2BE2.svg)](https://hpai.bsc.es)

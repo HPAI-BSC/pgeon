@@ -1,17 +1,18 @@
 import abc
 from typing import (
-    Collection,
-    Optional,
-    Tuple,
     Any,
+    Collection,
     Dict,
     Iterator,
-    cast,
     List,
+    Optional,
+    Tuple,
+    cast,
 )
+
 import networkx as nx
 
-from pgeon.discretizer import Discretizer, StateRepresentation, Action
+from pgeon.discretizer import Action, Discretizer, StateRepresentation
 
 
 class ProbabilityQuery: ...

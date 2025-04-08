@@ -1,10 +1,11 @@
-from enum import auto, Enum
-from typing import Tuple, Any, SupportsFloat
+from enum import Enum, auto
+from typing import Any, SupportsFloat, Tuple
 
 import gymnasium
 import numpy as np
-from gymnasium.core import ObsType, ActType
-from pgeon import Discretizer, Agent, Predicate
+from gymnasium.core import ActType, ObsType
+
+from pgeon import Agent, Discretizer, Predicate
 
 
 class State(Enum):
@@ -30,7 +31,6 @@ class TestingEnv(gymnasium.Env):
         self.steps = 0
         return self.state, {}
 
-
     def step(
         self, action: ActType
     ) -> tuple[ObsType, SupportsFloat, bool, bool, dict[str, Any]]:
@@ -39,14 +39,14 @@ class TestingEnv(gymnasium.Env):
         self.steps += 1
 
         self.state += 1
-        if self.state[0] > 3: self.state = np.array([0])
+        if self.state[0] > 3:
+            self.state = np.array([0])
 
         return self.state, 1, self.steps >= 30, self.steps >= 30, {}
 
 
 class TestingAgent(Agent):
-    def __init__(self):
-        ...
+    def __init__(self): ...
 
     def act(self, _):
         return 0
@@ -56,25 +56,25 @@ class TestingDiscretizer(Discretizer):
     def __init__(self):
         super(TestingDiscretizer, self).__init__()
 
-    def discretize(self,
-                   state: np.ndarray
-                   ) -> Tuple[Predicate]:
+    def discretize(self, state: np.ndarray) -> Tuple[Predicate]:
         correct_predicate = [State.ZERO, State.ONE, State.TWO, State.THREE][state[0]]
-        return (Predicate(State, [correct_predicate]), )
+        return (Predicate(State, [correct_predicate]),)
 
     def all_actions(self):
         return [0]
 
-    def get_predicate_space(self):
-        ...
+    def get_predicate_space(self): ...
 
     def nearest_state(self, state):
         while True:
             value = state[0].value[0].value - 1
-            yield (Predicate(State, [State.ZERO, State.ONE, State.TWO, State.THREE][value % 4]), )
+            yield (
+                Predicate(
+                    State, [State.ZERO, State.ONE, State.TWO, State.THREE][value % 4]
+                ),
+            )
 
     def state_to_str(self, state):
         return ""
 
-    def str_to_state(self, state_str):
-        ...
+    def str_to_state(self, state_str): ...

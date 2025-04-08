@@ -1,17 +1,19 @@
-if __name__ == '__main__':
+if __name__ == "__main__":
     from pgeon.policy_graph import PolicyGraph
 
-    pg_pickle = PolicyGraph.from_pickle('./ppo-cartpole.pickle')
+    pg_pickle = PolicyGraph.from_pickle("./ppo-cartpole.pickle")
 
-    print(f'Number of nodes:             {len(pg_pickle.nodes)}')
-    print(f'Number of edges:             {len(pg_pickle.edges)}')
-    print(f'Num. of stored trajectories: {len(pg_pickle._trajectories_of_last_fit)}')
+    print(f"Number of nodes:             {len(pg_pickle.nodes)}")
+    print(f"Number of edges:             {len(pg_pickle.edges)}")
+    print(f"Num. of stored trajectories: {len(pg_pickle._trajectories_of_last_fit)}")
 
-    from pgeon.intention_introspector import IntentionIntrospector
+    from example.cartpole.discretizer import Position
     from pgeon.desire import Desire
     from pgeon.discretizer import Predicate
-    from example.cartpole.discretizer import Position
+    from pgeon.intention_introspector import IntentionIntrospector
 
-    ii = IntentionIntrospector({Desire("keep_straight", 0, {Predicate(Position, [Position.MIDDLE])})})
+    ii = IntentionIntrospector(
+        {Desire("keep_straight", 0, {Predicate(Position, [Position.MIDDLE])})}
+    )
     # %%
     print(ii.find_intentions(pg_pickle, 0.5))

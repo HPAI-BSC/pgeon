@@ -1,7 +1,8 @@
 import abc
-from typing import List, Any, Collection, Optional, Union, Tuple
-from gymnasium import Env
 from enum import Enum
+from typing import Any, List, Tuple, Union
+
+from gymnasium import Env
 
 from pgeon.agent import Agent
 from pgeon.discretizer import Discretizer, StateRepresentation
@@ -9,41 +10,35 @@ from pgeon.policy_representation import PolicyRepresentation
 
 
 class Base:
-    def __init__(self,
-                 discretizer: Discretizer,
-                 ):
+    def __init__(
+        self,
+        discretizer: Discretizer,
+    ):
         super().__init__()
         self.discretizer = discretizer
 
         self._is_fit = False
         self._trajectories_of_last_fit: List[List[Any]] = []
 
-    def fit(self):
-        ...
+    def fit(self): ...
 
 
 # INTENTIONAL POLICY GRAPHS = BASE POLICY GRAPH + INTENTION FUNCTIONALITY
 
 
+class Desire: ...
 
 
-class Desire:
-    ...
+class ProbabilityQuery: ...
 
 
-class ProbabilityQuery:
-    ...
-
-
-class Action:
-    ...
+class Action: ...
 
 
 class PolicyApproximator(abc.ABC):
-    def __init__(self,
-                 discretizer: Discretizer,
-                 policy_representation: PolicyRepresentation
-                 ):
+    def __init__(
+        self, discretizer: Discretizer, policy_representation: PolicyRepresentation
+    ):
         self.discretizer: Discretizer = discretizer
         self.policy_represenation: PolicyRepresentation = policy_representation
 
@@ -53,39 +48,41 @@ class PolicyApproximator(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def fit(self):
-        ...
+    def fit(self): ...
 
 
 # From agent and environment
-class OnlinePolicyApproximator(PolicyApproximator):
-    ...
+class OnlinePolicyApproximator(PolicyApproximator): ...
 
 
 # From trajectories
-class OfflinePolicyApproximator(PolicyApproximator):
-    ...
+class OfflinePolicyApproximator(PolicyApproximator): ...
 
 
 class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
-    def __init__(self,
-                 discretizer: Discretizer,
-                 policy_representation: PolicyRepresentation,
-                 environment: Env,
-                 agent: Agent
-                 ):
+    def __init__(
+        self,
+        discretizer: Discretizer,
+        policy_representation: PolicyRepresentation,
+        environment: Env,
+        agent: Agent,
+    ):
         super().__init__(discretizer, policy_representation)
         self.environment = environment
         self.agent = agent
 
     def fit(self, n_episodes: int):
-        assert n_episodes > 0, "The number of episodes must be a positive integer number!"
+        assert (
+            n_episodes > 0
+        ), "The number of episodes must be a positive integer number!"
 
         for ep_i in range(n_episodes):
 
             episode_done = False
             # Alternative, more space-efficient albeit slightly less readable trajectory representation in comments
-            episode_trajectory: List[Tuple[StateRepresentation, Action, StateRepresentation]] = []
+            episode_trajectory: List[
+                Tuple[StateRepresentation, Action, StateRepresentation]
+            ] = []
             # episode_trajectory: List[Union[StateRepresentation, Action]] = []
 
             state = self.environment.reset()
@@ -109,7 +106,9 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
             # TODO May `self.policy_representation` perform any post-process?
 
-    def get_nearest_predicate(self, input_predicate: Tuple[Enum], verbose: bool = False):
+    def get_nearest_predicate(
+        self, input_predicate: Tuple[Enum], verbose: bool = False
+    ):
         """Returns the nearest predicate. If already exists, returns same predicate."""
         raise NotImplementedError()
 
@@ -137,11 +136,12 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         """Why do you perform action X in state Y?"""
         raise NotImplementedError()
 
-    def get_most_probable_option(self, predicate, greedy: bool = False, verbose: bool = False):
+    def get_most_probable_option(
+        self, predicate, greedy: bool = False, verbose: bool = False
+    ):
         """Get most probable action for a predicate"""
         raise NotImplementedError()
 
 
 class InterventionalPGConstruction(PolicyApproximator):
-    def fit(self):
-        ...
+    def fit(self): ...

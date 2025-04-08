@@ -1,4 +1,4 @@
-from typing import Set, Optional
+from typing import Optional, Set
 
 from pgeon import Predicate
 
