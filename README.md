@@ -15,6 +15,7 @@ or:
 1. Download the `pgeon/` folder and move it into the root directory of your project.
 2. Install **pgeon**'s requirements with `pip install -r PATH_TO_PGEON_REQUIREMENTS`.
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for more details on how to install **pgeon** for development.
 
 ## Example usage
 
