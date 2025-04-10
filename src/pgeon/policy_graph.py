@@ -28,6 +28,7 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation):
         environment: gym.Env,
         agent: Agent,
     ):
+        # TODO: Consider using a class for the configuration (too many args!)
         super().__init__(discretizer, policy_representation, environment, agent)
         self.discretizer = discretizer
         self.policy_representation = policy_representation
