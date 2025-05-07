@@ -2,8 +2,6 @@ from typing import Dict, List, Set
 
 import numpy as np
 
-from pgeon.desire import Desire
-
 
 class Node:
     def __init__(
@@ -38,39 +36,6 @@ class Node:
 
     def max_intention(self):
         return max(list(self.intention.values()) + [0])
-
-    def propagate_intention(self, desire: Desire, probability, stop_criterion=1e-4):
-        desire_name = desire.name
-        self.update_intention(desire_name, probability)
-        for coincider_idx in self.coinciders:
-            coincider = self.nodes[coincider_idx]
-            if coincider.check_desire(desire.clause, desire.action_idx) is None:
-                coincider_transitions = self.transitions[coincider_idx].values()
-            else:
-                # If coincider can fulfill desire themselves, do not propagate it through the action_idx branch
-                coincider_transitions = [
-                    v
-                    for action_idx, v in self.transitions[coincider_idx].items()
-                    if action_idx != desire.action_idx
-                ]
-            prob_of_transition = 0
-            for action_transitions in coincider_transitions:
-                prob_of_transition += action_transitions.get(self.node_id, 0)
-            # self.transitions = {n_idx: {action1:{dest_node1: P(dest1, action1|n_idx), ...}
-
-            new_coincider_intention_value = prob_of_transition * probability
-            if new_coincider_intention_value >= stop_criterion:
-                try:
-                    coincider.propagate_intention(desire, new_coincider_intention_value)
-                except RecursionError:
-                    print(
-                        "Maximum recursion reach, skipping branch with intention of",
-                        new_coincider_intention_value,
-                    )
-
-    def update_intention(self, desire_name, probability):
-        current_intention_val = self.intention.get(desire_name, 0)
-        self.intention[desire_name] = current_intention_val + probability
 
     def sample_next_state(self):
         try:
