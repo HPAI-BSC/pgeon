@@ -534,12 +534,6 @@ class GraphRepresentation(PolicyRepresentation):
                     "probability": state_prob,
                     "frequency": state_freq,
                 }
-                print(f"state_id: {state_id}")
-                print(f"value: {value}")
-                print(f"node_info[int({state_id})]: {node_info[int(state_id)]}")
-                print(
-                    f"discretizer.str_to_state(value): {discretizer.str_to_state(value)}"
-                )
                 representation.graph.add_node(
                     node_info[int(state_id)]["value"],
                     probability=state_prob,
@@ -558,7 +552,6 @@ class GraphRepresentation(PolicyRepresentation):
                 action = int(action)
                 prob = float(prob)
                 freq = int(freq)
-                print(f"action: {action}, prob: {prob}, freq: {freq}")
 
                 representation.graph.add_edge(
                     node_info[node_from]["value"],
@@ -567,9 +560,6 @@ class GraphRepresentation(PolicyRepresentation):
                     frequency=freq,
                     probability=prob,
                     action=action,
-                )
-                print(
-                    f"representation.get_transition_data(node_info[node_from]['value'], node_info[node_to]['value'], action): {representation.get_transition_data(node_info[node_from]['value'], node_info[node_to]['value'], action)}"
                 )
 
         return representation
@@ -598,8 +588,9 @@ class GraphRepresentation(PolicyRepresentation):
                     [
                         elem_position,
                         discretizer.state_to_str(node),
-                        self[node].get("probability", 0),
-                        self[node].get("frequency", 0),
+                        # TODO: Update the API for cleaner access to node attributes
+                        self.graph.nx_graph.nodes[node].get("probability", 0),
+                        self.graph.nx_graph.nodes[node].get("frequency", 0),
                     ]
                 )
 
