@@ -1,4 +1,6 @@
 import abc
+import csv
+from pathlib import Path
 from typing import (
     Any,
     Collection,
@@ -32,13 +34,15 @@ class PolicyRepresentation(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def load(path: str) -> "PolicyRepresentation":
-        """Load a policy representation from a file."""
+    def load_csv(
+        graph_backend: str, discretizer: Discretizer, nodes_path: Path, edges_path: Path
+    ) -> "PolicyRepresentation":
+        """Load a policy representation from a set of CSV files."""
         ...
 
     @abc.abstractmethod
-    def save(self, ext: str, path: str):
-        """Save a policy representation to a file."""
+    def save_csv(self, nodes_path: Path, edges_path: Path):
+        """Save a policy representation to a set of CSV files."""
         ...
 
     @abc.abstractmethod
@@ -499,10 +503,108 @@ class GraphRepresentation(PolicyRepresentation):
     def get_overall_minimum_state_transition_probability(self) -> float: ...
 
     @staticmethod
-    def load(path: str) -> "PolicyRepresentation": ...
+    def load_csv(
+        graph_backend: str, discretizer: Discretizer, nodes_path: Path, edges_path: Path
+    ) -> "PolicyRepresentation":
+        if not nodes_path.suffix == ".csv":
+            raise ValueError(f"Nodes file must have a .csv extension, got {nodes_path}")
+        if not edges_path.suffix == ".csv":
+            raise ValueError(f"Edges file must have a .csv extension, got {edges_path}")
 
-    def save(self, ext: str, path: str):
-        pass
+        if not nodes_path.exists():
+            raise FileNotFoundError(f"Nodes file {nodes_path} does not exist")
+        if not edges_path.exists():
+            raise FileNotFoundError(f"Edges file {edges_path} does not exist")
+
+        representation = GraphRepresentation(graph_backend)
+
+        node_info = {}
+        with open(nodes_path, "r+") as f:
+            csv_r = csv.reader(f)
+            next(csv_r)
+
+            for state_id, value, prob, freq in csv_r:
+                state_prob = float(prob)
+                state_freq = int(freq)
+
+                node_info[int(state_id)] = {
+                    "value": discretizer.str_to_state(value),
+                    "probability": state_prob,
+                    "frequency": state_freq,
+                }
+                representation.graph.add_node(
+                    node_info[int(state_id)]["value"],
+                    probability=state_prob,
+                    frequency=state_freq,
+                )
+
+        with open(edges_path, "r+") as f:
+            csv_r = csv.reader(f)
+            next(csv_r)
+
+            for node_from, node_to, action, prob, freq in csv_r:
+                node_from = int(node_from)
+                node_to = int(node_to)
+                # TODO Get discretizer to process the action id correctly;
+                #  we cannot assume the action will always be an int
+                action = int(action)
+                prob = float(prob)
+                freq = int(freq)
+
+                representation.graph.add_edge(
+                    node_info[node_from]["value"],
+                    node_info[node_to]["value"],
+                    key=action,
+                    frequency=freq,
+                    probability=prob,
+                    action=action,
+                )
+
+        return representation
+
+    def save_csv(self, discretizer: Discretizer, nodes_path: Path, edges_path: Path):
+        if not nodes_path.suffix == ".csv":
+            raise ValueError(f"Nodes file must have a .csv extension, got {nodes_path}")
+        if not edges_path.suffix == ".csv":
+            raise ValueError(f"Edges file must have a .csv extension, got {edges_path}")
+
+        if nodes_path.exists():
+            raise FileExistsError(f"Nodes file {nodes_path} already exists")
+        if edges_path.exists():
+            raise FileExistsError(f"Edges file {edges_path} already exists")
+
+        nodes_path.parent.mkdir(parents=True, exist_ok=True)
+        edges_path.parent.mkdir(parents=True, exist_ok=True)
+
+        node_ids = {}
+        with open(nodes_path, "w+") as f:
+            csv_w = csv.writer(f)
+            csv_w.writerow(["id", "value", "p(s)", "frequency"])
+            for elem_position, node in enumerate(self.nodes()):
+                node_ids[node] = elem_position
+                csv_w.writerow(
+                    [
+                        elem_position,
+                        discretizer.state_to_str(node),
+                        self[node].get("probability", 0),
+                        self[node].get("frequency", 0),
+                    ]
+                )
+
+        with open(edges_path, "w+") as f:
+            csv_w = csv.writer(f)
+            csv_w.writerow(["from", "to", "action", "p(s)", "frequency"])
+            for edge in self.edges(data=True):
+                state_from, state_to, action = edge
+                csv_w.writerow(
+                    [
+                        node_ids[state_from],
+                        node_ids[state_to],
+                        action.get("action", None),
+                        action.get("probability", 0),
+                        action.get("frequency", 0),
+                    ]
+                )
 
 
 class IntentionalPolicyGraphRepresentation(GraphRepresentation, IntentionMixin): ...
