@@ -95,10 +95,10 @@ class AbstractIPG(abc.ABC):
     def register_desire(self, desire: Desire, stop_criterion: float = 1e-4):
         self.registered_desires.append(desire)
         for s in self.get_all_state_ids():
-            node = self.stateID_to_node(s)  # TODO: Decide to keep abstraction or remove
-            p = node.check_desire(desire.clause, desire.action_idx)
+            node = s  # node = self.stateID_to_node(s)
+            p = self.check_desire(node, desire)
             if p is not None:
-                node.propagate_intention(desire, p, stop_criterion)
+                self.propagate_intention(node, desire, p, stop_criterion)
 
     def compute_desire_statistics(self, desire: Desire):
         action_prob_distribution = []
@@ -164,6 +164,10 @@ class AbstractIPG(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def check_desire(self, node, desire: Desire) -> float:
+        pass
+
+    @abc.abstractmethod
     def get_possible_actions(self, s: StateID) -> List[ActionID]:
         pass
 
@@ -205,6 +209,12 @@ class AbstractIPG(abc.ABC):
     def _prob_s_prima_given_s(self, s_prima: StateID, given_s: StateID) -> float:
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def propagate_intention(
+        self, node: StateID, desire: Desire, p: float, stop_criterion: float
+    ):
+        pass
+
 
 class IPG(PolicyGraph, AbstractIPG):
     def __init__(
@@ -235,7 +245,7 @@ class IPG(PolicyGraph, AbstractIPG):
         )  # deduplicate, for some reason needed (?)
         actions = list(
             set([act for act, _, p in actions_with_probs if p > 0])
-        )  # Just in case theres 0-prob edges
+        )  # Just in case there's 0-prob edges
         return actions
 
     def get_possible_s_prima(self, s: StateID, a: ActionID = None) -> List[ActionID]:
@@ -250,7 +260,7 @@ class IPG(PolicyGraph, AbstractIPG):
             set(edges_with_probs)
         )  # deduplicate, for some reason needed (?)
         if a is not None:
-            # Filter for edges annotated with action=a only
+            # Filter for edges annotated with action= a only
             destinies = list(
                 set([dest for act, dest, p in edges_with_probs if p > 0 and act == a])
             )
@@ -260,6 +270,9 @@ class IPG(PolicyGraph, AbstractIPG):
 
     def get_all_state_ids(self) -> Iterable[StateID]:
         return range(len(self.graph.nodes))
+
+    def check_desire(self, node, desire: Desire) -> float:
+        pass
 
     def _prob_s(self, s: StateID):
         return self.graph.nodes[s].probability
@@ -344,3 +357,56 @@ class IPG(PolicyGraph, AbstractIPG):
 
     def stateID_to_node(self, s: StateID) -> Node:
         pass
+
+    def propagate_intention(
+        self,
+        node: StateID,
+        desire: Desire,
+        propagated_intention: float,
+        stop_criterion: float,
+    ):
+        # TODO: This should eventually be a method of AbstractIPG
+        desire_name = desire.name
+        self._update_intention(desire_name, propagated_intention)
+
+        parents = set([orig for orig, _, data in self.graph.in_edges(node)])
+
+        for parent in parents:
+            if self.check_desire(parent, desire) is None:
+                prob_transition = self.prob(ProbQuery(s=node, given_s=parent))
+            else:
+                # If coincider can fulfill desire themselves, do not propagate it through the action_idx branch
+                # (as that would compute Expected #desires, instead of desire probability, and that can be >1).
+
+                # coincider_transitions = [
+                #     v
+                #     for action_idx, v in self.transitions[coincider_idx].items()
+                #     if action_idx != desire.action_idx
+                # ]
+                prob_transition = self.prob(ProbQuery(s=node, given_s=parent))
+                if desire.type == "achievement":
+                    # (We want to remove from P(s' |s) all P(s',a=Desired action | s)
+                    prob_transition_through_action = self.prob(
+                        ProbQuery(s=node, a=desire.action_idx, given_s=parent)
+                    )
+                    prob_transition -= prob_transition_through_action
+                else:
+                    raise NotImplementedError
+
+            new_coincider_intention_value = prob_transition * propagated_intention
+
+            if new_coincider_intention_value >= stop_criterion:
+                # avoid infinite loops
+                try:
+                    self.propagate_intention(
+                        parent, desire, new_coincider_intention_value, stop_criterion
+                    )
+                except RecursionError:
+                    print(
+                        "Maximum recursion reach, skipping branch with intention of",
+                        new_coincider_intention_value,
+                    )
+
+    def _update_intention(self, desire_name, probability):
+        current_intention_val = self.intention.get(desire_name, 0)
+        self.intention[desire_name] = current_intention_val + probability
