@@ -75,6 +75,7 @@ class TestingDiscretizer(Discretizer):
             )
 
     def state_to_str(self, state):
-        return ""
+        return state.predicates[0].value[0].name
 
-    def str_to_state(self, state_str): ...
+    def str_to_state(self, state_str):
+        return State[state_str]
