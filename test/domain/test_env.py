@@ -6,6 +6,7 @@ import numpy as np
 from gymnasium.core import ActType, ObsType
 
 from pgeon import Agent, Discretizer, Predicate
+from pgeon.discretizer import PredicateBasedStateRepresentation
 
 
 class State(Enum):
@@ -78,4 +79,6 @@ class TestingDiscretizer(Discretizer):
         return state.predicates[0].value[0].name
 
     def str_to_state(self, state_str):
-        return State[state_str]
+        return PredicateBasedStateRepresentation(
+            (Predicate(State, [State[state_str]]),)
+        )

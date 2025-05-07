@@ -524,6 +524,8 @@ class GraphRepresentation(PolicyRepresentation):
             next(csv_r)
 
             for state_id, value, prob, freq in csv_r:
+                # if value is None or value == "":
+                #     value = state_id
                 state_prob = float(prob)
                 state_freq = int(freq)
 
@@ -532,6 +534,12 @@ class GraphRepresentation(PolicyRepresentation):
                     "probability": state_prob,
                     "frequency": state_freq,
                 }
+                print(f"state_id: {state_id}")
+                print(f"value: {value}")
+                print(f"node_info[int({state_id})]: {node_info[int(state_id)]}")
+                print(
+                    f"discretizer.str_to_state(value): {discretizer.str_to_state(value)}"
+                )
                 representation.graph.add_node(
                     node_info[int(state_id)]["value"],
                     probability=state_prob,
@@ -550,6 +558,7 @@ class GraphRepresentation(PolicyRepresentation):
                 action = int(action)
                 prob = float(prob)
                 freq = int(freq)
+                print(f"action: {action}, prob: {prob}, freq: {freq}")
 
                 representation.graph.add_edge(
                     node_info[node_from]["value"],
@@ -558,6 +567,9 @@ class GraphRepresentation(PolicyRepresentation):
                     frequency=freq,
                     probability=prob,
                     action=action,
+                )
+                print(
+                    f"representation.get_transition_data(node_info[node_from]['value'], node_info[node_to]['value'], action): {representation.get_transition_data(node_info[node_from]['value'], node_info[node_to]['value'], action)}"
                 )
 
         return representation
