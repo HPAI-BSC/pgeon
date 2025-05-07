@@ -12,6 +12,7 @@ from pgeon.policy_representation import Action
 
 # action_idx_to_name = {'0': 'UP', '1': 'DOWN', '2': 'RIGHT', '3': 'LEFT', '4': 'STAY', '5': 'Interact'}
 action_name_to_idx = {"Interact": "5"}
+Action = "str"
 
 
 def get_desires(only_one_pot=False) -> List[Desire]:
@@ -81,10 +82,72 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
         self.state3 = PredicateBasedStateRepresentation(
             (Predicate(State, [State.THREE]),)
         )
+        self.states = [self.state0, self.state1, self.state2, self.state3]
 
-        self.action0: Action = 0
+        self.action0: Action = "0"
+        self.action1: Action = "1"
         self.representation = GraphRepresentation()
-        self.graph = IPG(
+
+        self.representation.graph.add_nodes_from(self.states)
+
+        # adding 3 edges: idea is state2 is terminal, state0 goes to 1 or 2 depending on actions & probs
+        # Desire is to use action0 in state1, bringing you univocally to state2
+        self.edges = [
+            # - 4-tuples (u, v, k, d) for an edge with data and key k; as per policy_rep key is action
+            (
+                self.states[2],
+                self.states[2],
+                self.action0,
+                {"action": self.action0, "prob": 0.75},
+            ),
+            (
+                self.states[2],
+                self.states[2],
+                self.action1,
+                {"action": self.action1, "prob": 0.25},
+            ),
+            (
+                self.states[0],
+                self.states[2],
+                self.action0,
+                {"action": self.action0, "prob": 0.5},
+            ),
+            (
+                self.states[0],
+                self.states[1],
+                self.action1,
+                {"action": self.action1, "prob": 0.4},
+            ),
+            (
+                self.states[0],
+                self.states[2],
+                self.action1,
+                {"action": self.action1, "prob": 0.1},
+            ),
+            (
+                self.states[1],
+                self.states[2],
+                self.action0,
+                {"action": self.action0, "prob": 0.5},
+            ),
+            (
+                self.states[1],
+                self.states[0],
+                self.action1,
+                {"action": self.action1, "prob": 0.1},
+            ),
+            (
+                self.states[1],
+                self.states[2],
+                self.action1,
+                {"action": self.action1, "prob": 0.4},
+            ),
+        ]
+        # Expected intention return in 0 = sum_i (0.4*0.1)^i[going to 1 and back] *(0.4*0.5) [final transition]
+        #  = 0.208333 according to wolframalpha, may be smaller depending on stop_criterion
+        self.representation.graph.add_edges_from(self.edges)
+
+        self.ipg = IPG(
             self.discretizer,
             self.representation,
             TestingEnv(),
@@ -94,11 +157,11 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
     def test_initialization(self):
         """Test initialization of policy representation."""
         # self.assertEqual(self.graph, self.representation.graph.nx_graph)
-        self.assertIsInstance(self.graph.graph, nx.MultiDiGraph)
-        self.assertEqual(len(self.graph.graph.nodes), 0)
-        self.assertEqual(len(self.graph.graph.edges), 0)
+        self.assertIsInstance(self.ipg.graph, nx.MultiDiGraph)
+        self.assertEqual(len(self.ipg.graph.nodes), 4)
+        self.assertEqual(len(self.ipg.graph.edges), 8)
 
-    def test_propogate_intentions(self):
+    def test_propagate_intentions(self):
         # load graph from edges and nodes files
         desires = [
             Desire(
@@ -108,11 +171,14 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
             )
         ]
         # this automatically calls propogate_intentions() on the nodes
-        self.graph.register_all_desires(desires)
+        self.ipg.register_all_desires(desires)
+
+        print(list(self.representation.graph.nodes()))
+        print(list(self.ipg.graph.nodes))
 
         # validate the intentions of several nodes have the expected values
-        self.assertEqual(self.graph.graph.nodes[self.state0].intention, 0)
-        self.assertEqual(self.graph.graph.nodes[self.state1].intention, 1)
+        self.assertEqual(self.ipg.graph.nodes[self.state0].intention, 0)
+        self.assertEqual(self.ipg.graph.nodes[self.state1].intention, 1)
 
 
 if __name__ == "__main__":

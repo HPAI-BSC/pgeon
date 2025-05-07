@@ -226,6 +226,9 @@ class IPG(PolicyGraph, AbstractIPG):
         verbose=False,
     ):
         super().__init__(discretizer, policy_representation, environment, agent)
+        self.registered_desires: List[Desire] = (
+            list()
+        )  # TODO: temp fix since AbstractIPG init is not callable here
         self.verbose = verbose
 
         self.node_reference = {
