@@ -505,7 +505,7 @@ class GraphRepresentation(PolicyRepresentation):
     @staticmethod
     def load_csv(
         graph_backend: str, discretizer: Discretizer, nodes_path: Path, edges_path: Path
-    ) -> "PolicyRepresentation":
+    ) -> "GraphRepresentation":
         if not nodes_path.suffix == ".csv":
             raise ValueError(f"Nodes file must have a .csv extension, got {nodes_path}")
         if not edges_path.suffix == ".csv":
@@ -518,35 +518,31 @@ class GraphRepresentation(PolicyRepresentation):
 
         representation = GraphRepresentation(graph_backend)
 
-        node_info = {}
+        node_ids_to_values = {}
         with open(nodes_path, "r+") as f:
             csv_r = csv.reader(f)
             next(csv_r)
 
-            for state_id, value, prob, freq in csv_r:
-                # if value is None or value == "":
-                #     value = state_id
+            for id_str, value, prob, freq in csv_r:
+                state_id = int(id_str)
                 state_prob = float(prob)
                 state_freq = int(freq)
+                state_value = discretizer.str_to_state(value)
 
-                node_info[int(state_id)] = {
-                    "value": discretizer.str_to_state(value),
-                    "probability": state_prob,
-                    "frequency": state_freq,
-                }
                 representation.graph.add_node(
-                    node_info[int(state_id)]["value"],
+                    state_value,
                     probability=state_prob,
                     frequency=state_freq,
                 )
+                node_ids_to_values[state_id] = state_value
 
         with open(edges_path, "r+") as f:
             csv_r = csv.reader(f)
             next(csv_r)
 
-            for node_from, node_to, action, prob, freq in csv_r:
-                node_from = int(node_from)
-                node_to = int(node_to)
+            for node_from_id, node_to_id, action, prob, freq in csv_r:
+                node_from = node_ids_to_values[int(node_from_id)]
+                node_to = node_ids_to_values[int(node_to_id)]
                 # TODO Get discretizer to process the action id correctly;
                 #  we cannot assume the action will always be an int
                 action = int(action)
@@ -554,14 +550,13 @@ class GraphRepresentation(PolicyRepresentation):
                 freq = int(freq)
 
                 representation.graph.add_edge(
-                    node_info[node_from]["value"],
-                    node_info[node_to]["value"],
+                    node_from,
+                    node_to,
                     key=action,
                     frequency=freq,
                     probability=prob,
                     action=action,
                 )
-
         return representation
 
     def save_csv(self, discretizer: Discretizer, nodes_path: Path, edges_path: Path):
