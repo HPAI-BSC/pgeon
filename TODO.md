@@ -11,6 +11,7 @@
 - [ ] visualization and presentation
   - in the main branch
   - demo?
+- [ ] Remove deprecated code and duplicated snippets
 
 ## First steps
 

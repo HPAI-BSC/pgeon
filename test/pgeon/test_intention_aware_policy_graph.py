@@ -177,8 +177,6 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
         num_places = 4
         self.ipg.register_all_desires(desires, stop_criterion=10 ^ -num_places)
 
-        print(self.ipg.graph.nodes[self.state0]["intention"])
-
         # validate the intentions of several nodes have the expected values
         # Id(s0) = 0.208333 according to wolframalpha, may be smaller depending on stop_criterion
         int_s0 = self.ipg.graph.nodes[self.state0]["intention"]["test_desire"]
