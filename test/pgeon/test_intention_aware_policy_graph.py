@@ -153,6 +153,9 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
             TestingEnv(),
             TestingAgent(),
         )
+        self.ipg.graph = (
+            self.representation.graph.nx_graph
+        )  # TODO: Temporary line, to remove once the PG class works
 
     def test_initialization(self):
         """Test initialization of policy representation."""
@@ -177,6 +180,7 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
         print(list(self.ipg.graph.nodes))
 
         # validate the intentions of several nodes have the expected values
+        # Id(s0) = 0.208333 according to wolframalpha, may be smaller depending on stop_criterion
         self.assertEqual(self.ipg.graph.nodes[self.state0].intention, 0)
         self.assertEqual(self.ipg.graph.nodes[self.state1].intention, 1)
 
