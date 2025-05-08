@@ -174,15 +174,15 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
             )
         ]
         # this automatically calls propogate_intentions() on the nodes
-        self.ipg.register_all_desires(desires)
+        num_places = 4
+        self.ipg.register_all_desires(desires, stop_criterion=10 ^ -num_places)
 
-        print(list(self.representation.graph.nodes()))
-        print(list(self.ipg.graph.nodes))
+        print(self.ipg.graph.nodes[self.state0]["intention"])
 
         # validate the intentions of several nodes have the expected values
         # Id(s0) = 0.208333 according to wolframalpha, may be smaller depending on stop_criterion
-        self.assertEqual(self.ipg.graph.nodes[self.state0].intention, 0)
-        self.assertEqual(self.ipg.graph.nodes[self.state1].intention, 1)
+        int_s0 = self.ipg.graph.nodes[self.state0]["intention"]["test_desire"]
+        self.assertAlmostEqual(0.208333, int_s0, places=num_places)
 
 
 if __name__ == "__main__":

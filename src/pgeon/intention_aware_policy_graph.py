@@ -94,8 +94,12 @@ class AbstractIPG(abc.ABC):
 
     def register_desire(self, desire: Desire, stop_criterion: float = 1e-4):
         self.registered_desires.append(desire)
+
         for s in self.get_all_state_ids():
-            node = s  # node = self.stateID_to_node(s)
+            self._set_intention(s, desire, 0)
+
+        for s in self.get_all_state_ids():
+            node = s
             p = self.check_desire(node, desire)
             if p is not None:
                 self.propagate_intention(node, desire, p, stop_criterion)
@@ -215,6 +219,10 @@ class AbstractIPG(abc.ABC):
     ):
         pass
 
+    @abc.abstractmethod
+    def _set_intention(self, s, desire, param):
+        pass
+
 
 class IPG(PolicyGraph, AbstractIPG):
     def __init__(
@@ -272,23 +280,30 @@ class IPG(PolicyGraph, AbstractIPG):
         return destinies
 
     def get_all_state_ids(self) -> Iterable[StateID]:
-        return range(len(self.graph.nodes))
+        return self.graph.nodes
 
     def check_desire(self, node: Tuple[Predicate], desire: Desire) -> Optional[float]:
         # If it is a node where desire can be fulfilled, returns the immediate probability of fulfilling it
         # Else returns None
         if desire.type == "achievement":
             # TODO: Convert desire clauses into predicates and do it fancy
-            predicates_in_state = set(node)
+            predicates_in_state = set(node.predicates)
             fulfillable_desire = desire.clause.issubset(predicates_in_state)
             if fulfillable_desire:
-                self.prob(
+                return self.prob(
                     ProbQuery(a=desire.action_idx, given_s=node)
                 )  # TODO:Typing error to be verified and checked
             else:
                 return None
         else:
             raise NotImplementedError
+
+    def _set_intention(self, s, desire, new_int):
+        try:
+            self.graph.nodes[s]["intention"][desire.name] = new_int
+        except KeyError:
+            self.graph.nodes[s]["intention"] = dict()
+            self.graph.nodes[s]["intention"][desire.name] = new_int
 
     def _prob_s(self, s: StateID):
         return self.graph.nodes[s].probability
@@ -372,7 +387,7 @@ class IPG(PolicyGraph, AbstractIPG):
         return sum(prob)
 
     def stateID_to_node(self, s: StateID) -> Node:
-        pass
+        return self.graph.nodes[s]
 
     def propagate_intention(
         self,
@@ -389,16 +404,16 @@ class IPG(PolicyGraph, AbstractIPG):
 
         for parent in parents:
             if self.check_desire(parent, desire) is None:
-                prob_transition = self.prob(ProbQuery(s=node, given_s=parent))
+                prob_transition = self.prob(ProbQuery(s_prima=node, given_s=parent))
             else:
                 # If coincider can fulfill desire themselves, do not propagate it through the action_idx branch
                 # (as that would compute Expected #desires, instead of desire probability, and that can be >1).
 
-                prob_transition = self.prob(ProbQuery(s=node, given_s=parent))
+                prob_transition = self.prob(ProbQuery(s_prima=node, given_s=parent))
                 if desire.type == "achievement":
                     # (We want to remove from P(s' |s) all P(s',a=Desired action | s)
                     prob_transition_through_action = self.prob(
-                        ProbQuery(s=node, a=desire.action_idx, given_s=parent)
+                        ProbQuery(s_prima=node, a=desire.action_idx, given_s=parent)
                     )
                     prob_transition -= prob_transition_through_action
                 else:
