@@ -124,7 +124,7 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertEqual(transition_data["frequency"], 3)
         self.assertEqual(transition_data["probability"], 0.75)
 
-    def test_save_load_csv(self):
+    def test_save_and_load_csv(self):
         """Test saving and loading a policy representation from CSV files."""
         nodes_path = self.tmp_dir / "test_nodes.csv"
         edges_path = self.tmp_dir / "test_edges.csv"
