@@ -45,7 +45,7 @@ class TestPolicyRepresentation(unittest.TestCase):
 
     def test_initialization(self):
         """Test initialization of policy representation."""
-        self.assertIsInstance(self.representation.graph.nx_graph, nx.MultiDiGraph)
+        self.assertIsInstance(self.representation.graph.backend, nx.MultiDiGraph)
         self.assertEqual(len(self.representation.get_all_states()), 0)
         self.assertEqual(len(self.representation.get_all_transitions()), 0)
 
@@ -145,7 +145,6 @@ class TestPolicyRepresentation(unittest.TestCase):
 
         self.assertEqual(len(loaded_representation.get_all_states()), 4)
         self.assertEqual(len(loaded_representation.get_all_transitions()), 1)
-
         self.assertEqual(
             loaded_representation.get_state_attributes("frequency"),
             self.representation.get_state_attributes("frequency"),

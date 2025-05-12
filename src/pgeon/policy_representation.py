@@ -201,6 +201,9 @@ class GraphRepresentation(PolicyRepresentation):
         def has_node(self, node: StateRepresentation) -> bool: ...
 
         @abc.abstractmethod
+        def get_node(self, node: StateRepresentation) -> Dict[str, Any]: ...
+
+        @abc.abstractmethod
         def has_edge(
             self,
             node_from: StateRepresentation,
@@ -225,11 +228,10 @@ class GraphRepresentation(PolicyRepresentation):
         @abc.abstractmethod
         def __getitem__(self, node: StateRepresentation) -> Any: ...
 
+        # TODO: Make the return type include other possible backends
         @property
         @abc.abstractmethod
-        def nx_graph(self) -> nx.MultiDiGraph:
-            """Return the underlying networkx graph if available"""
-            ...
+        def backend(self) -> nx.MultiDiGraph: ...
 
     class NetworkXGraph(Graph):
         """NetworkX implementation of the Graph interface."""
@@ -273,6 +275,9 @@ class GraphRepresentation(PolicyRepresentation):
         def has_node(self, node: StateRepresentation) -> bool:
             return self._nx_graph.has_node(node)
 
+        def get_node(self, node: StateRepresentation) -> Dict[str, Any]:
+            return self._nx_graph.nodes[node]
+
         def has_edge(
             self,
             node_from: StateRepresentation,
@@ -296,7 +301,7 @@ class GraphRepresentation(PolicyRepresentation):
             self._nx_graph.clear()
 
         @property
-        def nx_graph(self) -> nx.MultiDiGraph:
+        def backend(self) -> nx.MultiDiGraph:
             return self._nx_graph
 
     def __init__(self, graph_backend: str = "networkx"):
@@ -397,13 +402,13 @@ class GraphRepresentation(PolicyRepresentation):
         self, attribute_name: str
     ) -> Dict[StateRepresentation, Any]:
         """Get attributes for all states by name."""
-        return nx.get_node_attributes(self.graph.nx_graph, attribute_name)
+        return nx.get_node_attributes(self.graph.backend, attribute_name)
 
     def set_state_attributes(
         self, attributes: Dict[StateRepresentation, Any], attribute_name: str
     ) -> None:
         """Set attributes for states."""
-        nx.set_node_attributes(self.graph.nx_graph, attributes, attribute_name)
+        nx.set_node_attributes(self.graph.backend, attributes, attribute_name)
 
     def get_all_states(self) -> Collection[StateRepresentation]:
         """Get all states in the policy representation."""
@@ -445,6 +450,9 @@ class GraphRepresentation(PolicyRepresentation):
 
     def add_node(self, node: StateRepresentation, **kwargs) -> None:
         self.add_state(node, **kwargs)
+
+    def get_node(self, node: StateRepresentation) -> Dict[str, Any]:
+        return self.graph.get_node(node)
 
     def add_nodes_from(self, nodes: Collection[StateRepresentation], **kwargs) -> None:
         self.add_states_from(nodes, **kwargs)
@@ -583,9 +591,8 @@ class GraphRepresentation(PolicyRepresentation):
                     [
                         elem_position,
                         discretizer.state_to_str(node),
-                        # TODO: Update the API for cleaner access to node attributes
-                        self.graph.nx_graph.nodes[node].get("probability", 0),
-                        self.graph.nx_graph.nodes[node].get("frequency", 0),
+                        self.get_node(node).get("probability", 0),
+                        self.get_node(node).get("frequency", 0),
                     ]
                 )
 
