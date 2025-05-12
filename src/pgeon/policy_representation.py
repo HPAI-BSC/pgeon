@@ -223,6 +223,16 @@ class GraphRepresentation(PolicyRepresentation):
         ) -> Iterator: ...
 
         @abc.abstractmethod
+        def get_node_attributes(
+            self, attribute_name: str
+        ) -> Dict[StateRepresentation, Any]: ...
+
+        @abc.abstractmethod
+        def set_node_attributes(
+            self, attributes: Dict[StateRepresentation, Any], attribute_name: str
+        ) -> None: ...
+
+        @abc.abstractmethod
         def clear(self) -> None: ...
 
         @abc.abstractmethod
@@ -296,6 +306,16 @@ class GraphRepresentation(PolicyRepresentation):
             self, node: StateRepresentation, data: bool = False
         ) -> nx.reportviews.OutMultiEdgeView:
             return self._nx_graph.out_edges(node, data=data)
+
+        def get_node_attributes(
+            self, attribute_name: str
+        ) -> Dict[StateRepresentation, Any]:
+            return nx.get_node_attributes(self._nx_graph, attribute_name)
+
+        def set_node_attributes(
+            self, attributes: Dict[StateRepresentation, Any], attribute_name: str
+        ) -> None:
+            nx.set_node_attributes(self._nx_graph, attributes, attribute_name)
 
         def clear(self) -> None:
             self._nx_graph.clear()
@@ -402,13 +422,13 @@ class GraphRepresentation(PolicyRepresentation):
         self, attribute_name: str
     ) -> Dict[StateRepresentation, Any]:
         """Get attributes for all states by name."""
-        return nx.get_node_attributes(self.graph.backend, attribute_name)
+        return self.graph.get_node_attributes(attribute_name)
 
     def set_state_attributes(
         self, attributes: Dict[StateRepresentation, Any], attribute_name: str
     ) -> None:
         """Set attributes for states."""
-        nx.set_node_attributes(self.graph.backend, attributes, attribute_name)
+        self.graph.set_node_attributes(attributes, attribute_name)
 
     def get_all_states(self) -> Collection[StateRepresentation]:
         """Get all states in the policy representation."""
