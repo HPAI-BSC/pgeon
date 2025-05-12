@@ -1,7 +1,7 @@
 import abc
 import warnings
 from dataclasses import asdict, dataclass
-from typing import Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Tuple
 
 import gymnasium as gym
 import numpy as np
@@ -9,12 +9,15 @@ from tqdm import tqdm
 
 from pgeon.agent import Agent
 from pgeon.desire import Desire
-from pgeon.discretizer import Discretizer, Predicate
+from pgeon.discretizer import Discretizer, Predicate, PredicateBasedStateRepresentation
 from pgeon.node import Node, PropoNode
 from pgeon.policy_graph import PolicyGraph, PolicyRepresentation
 
 ActionID = str
-StateID = int  # TODO: to be changed to: Tuple[Predicate], or preferably Set[Predicate] (but that affects everything)
+StateID = PredicateBasedStateRepresentation
+
+
+# TODO: Check this typing everywhere, tests are still passing
 
 
 @dataclass
@@ -245,7 +248,11 @@ class IPG(PolicyGraph, AbstractIPG):
 
     def get_possible_actions(self, s: StateID) -> List[ActionID]:
         # Returns any a s.t. P(a|s)>0
-        node = self.graph.nodes[s]
+        if type(s) == int:
+            # TODO: Legacy: to be removed
+            node = self.graph.nodes[s]
+        else:
+            node = s
         actions_with_probs = [
             (data["action"], dest, data["prob"])
             for orig, dest, data in self.graph.out_edges(node, data=True)
@@ -259,9 +266,13 @@ class IPG(PolicyGraph, AbstractIPG):
         )  # Just in case there's 0-prob edges
         return actions
 
-    def get_possible_s_prima(self, s: StateID, a: ActionID = None) -> List[ActionID]:
+    def get_possible_s_prima(self, s: StateID, a: ActionID = None) -> List[StateID]:
         # Returns any a s.t. P(a|s)>0
-        node = self.graph.nodes[s]
+        if type(s) == int:
+            # TODO: Legacy: to be removed
+            node = self.graph.nodes[s]
+        else:
+            node = s
         edges_with_probs = [
             (data["action"], dest, data["prob"])
             for orig, dest, data in self.graph.out_edges(node, data=True)
@@ -297,6 +308,18 @@ class IPG(PolicyGraph, AbstractIPG):
                 return None
         else:
             raise NotImplementedError
+
+    def get_intention(self, s: StateID, desire: Desire):
+        try:
+            return self.graph.nodes[s]["intention"][desire.name]
+        except KeyError:
+            return 0
+
+    def get_intentions(self, s: StateID) -> Dict[Desire, float]:
+        try:
+            return self.graph.nodes[s]["intention"]
+        except KeyError:
+            return dict()
 
     def _set_intention(self, s, desire, new_int):
         try:
@@ -437,3 +460,10 @@ class IPG(PolicyGraph, AbstractIPG):
         graph_node = self.graph.nodes[node]
         current_intention_val = graph_node["intention"][desire_name]
         graph_node["intention"][desire_name] = current_intention_val + intention
+
+    def get_action_probability(self, state: StateID) -> Dict[ActionID, float]:
+        # TODO: This should go in the representation parent class
+        return {
+            a: self.prob(ProbQuery(a=a, given_s=state))
+            for a in self.get_possible_actions(state)
+        }
