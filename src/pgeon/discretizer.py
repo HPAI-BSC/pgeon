@@ -94,7 +94,7 @@ class Discretizer(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def str_to_state(self, state: str):
+    def str_to_state(self, state: str) -> StateRepresentation:
         pass
 
     @abc.abstractmethod

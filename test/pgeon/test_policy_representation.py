@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from test.domain.test_env import State, TestingDiscretizer, TestingEnv
 from typing import Dict, List, Tuple
 
@@ -33,9 +34,18 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.action0: Action = 0
         self.representation = GraphRepresentation()
 
+        self.tmp_dir = Path(".tmp")
+
+    def tearDown(self):
+        """Tear down test data after each test."""
+        if self.tmp_dir.exists():
+            for file in self.tmp_dir.iterdir():
+                file.unlink()
+            self.tmp_dir.rmdir()
+
     def test_initialization(self):
         """Test initialization of policy representation."""
-        self.assertIsInstance(self.representation.graph.nx_graph, nx.MultiDiGraph)
+        self.assertIsInstance(self.representation.graph.backend, nx.MultiDiGraph)
         self.assertEqual(len(self.representation.get_all_states()), 0)
         self.assertEqual(len(self.representation.get_all_transitions()), 0)
 
@@ -113,6 +123,44 @@ class TestPolicyRepresentation(unittest.TestCase):
         )
         self.assertEqual(transition_data["frequency"], 3)
         self.assertEqual(transition_data["probability"], 0.75)
+
+    def test_save_and_load_csv(self):
+        """Test saving and loading a policy representation from CSV files."""
+        nodes_path = self.tmp_dir / "test_nodes.csv"
+        edges_path = self.tmp_dir / "test_edges.csv"
+        self.maxDiff = None
+        self.representation.add_states_from(
+            [self.state0, self.state1, self.state2, self.state3],
+            frequency=1,
+            probability=0.25,
+        )
+        self.representation.add_transition(
+            self.state0, self.state1, self.action0, frequency=5, probability=1.0
+        )
+
+        self.representation.save_csv(self.discretizer, nodes_path, edges_path)
+        loaded_representation = GraphRepresentation.load_csv(
+            "networkx", self.discretizer, nodes_path, edges_path
+        )
+
+        self.assertEqual(len(loaded_representation.get_all_states()), 4)
+        self.assertEqual(len(loaded_representation.get_all_transitions()), 1)
+        self.assertEqual(
+            loaded_representation.get_state_attributes("frequency"),
+            self.representation.get_state_attributes("frequency"),
+        )
+        self.assertEqual(
+            loaded_representation.get_state_attributes("probability"),
+            self.representation.get_state_attributes("probability"),
+        )
+        self.assertEqual(
+            loaded_representation.get_transition_data(
+                self.state0, self.state1, self.action0
+            ),
+            self.representation.get_transition_data(
+                self.state0, self.state1, self.action0
+            ),
+        )
 
     def test_get_possible_actions(self):
         """Test getting possible actions from a state."""
