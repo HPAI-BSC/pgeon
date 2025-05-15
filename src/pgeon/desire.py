@@ -1,13 +1,14 @@
-from typing import Optional, Set
+from typing import Set
 
-from pgeon import Predicate
+from pgeon.discretizer import Predicate
 
 
 class Desire(object):
-    def __init__(self, name: str, action_idx: Optional[int], clause: Set[Predicate]):
+    def __init__(self, name: str, action_idx: str, clause: Set[Predicate]):
         self.name = name
         self.action_idx = action_idx
         self.clause = clause
+        self.type = "achievement"
 
     def __repr__(self):
         return f"Desire[{self.name}]=<{self.clause}>|{self.action_idx}"
