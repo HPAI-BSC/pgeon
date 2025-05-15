@@ -3,24 +3,23 @@
 ## Overall goal
 
 - [x] intention_aware_policy_graph
-- [ ] integrate code from Node into intention_aware_policy_graph
-  - [ ] either into the AbstractIPG or IPG class
+- [x] integrate code from Node into intention_aware_policy_graph
+  - [x] either into the AbstractIPG or IPG class
+  - [ ] XAI questions in a different IPG_XAI_analyser file
+    - [ ] Why
+    - [x] How
+    - [x] What
   - [ ] remove node.py
-- [ ] write tests
-  - [ ] test_intention_aware_policy_graph.py
+- [x] write tests
+  - [x] test_intention_aware_policy_graph.py
+  - [x] test_ipg_xai.py
 - [ ] visualization and presentation
   - in the main branch
   - demo?
 - [ ] Remove deprecated code and duplicated snippets
 
-## First steps
-
-- avoid over-abstraction
-- [ ] implement propogate_intentions()
-  - [ ] copy what we have, leave it recursive
-  - [ ] write tests
-  - make improvements later maybe
-
-## Today's goal
-
-- [ ] propogate_intentions()
+## Post MR work
+- [ ] Stochastic 'How' question
+- [ ] Visualisation and plots
+- [ ] Adapt for IPG to work with Representation instead of Approximator
+- [ ] Type coherence
