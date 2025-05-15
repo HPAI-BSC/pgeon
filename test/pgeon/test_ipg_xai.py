@@ -10,7 +10,7 @@ from pgeon.ipg_xai import IPG_XAI_analyser
 Action = str
 
 
-class MyTestCase(unittest.TestCase):
+class TestIntentionalXAI(unittest.TestCase):
     """Tests for the IntentionAwarePolicyGraph class."""
 
     def setUp(self):
@@ -105,7 +105,7 @@ class MyTestCase(unittest.TestCase):
             self.representation.graph.nx_graph
         )  # TODO: Temporary line, to remove once the PG class works
 
-        self.ipg_xai = IPG_XAI_analyser(self.ipg)
+        self.ipg_xai = IPG_XAI_analyser(self.ipg, c_threshold=0.1)
         self.desire0 = Desire(
             "test_desire",
             self.action0,
@@ -115,7 +115,7 @@ class MyTestCase(unittest.TestCase):
         self.ipg.register_all_desires([self.desire0], stop_criterion=10 ^ -num_places)
 
     def test_how(self):
-        trace = self.ipg_xai.answer_how(self.state0, [self.desire0], c_threshold=0.1)
+        trace = self.ipg_xai.answer_how(self.state0, [self.desire0])
         expected_trace = {
             self.desire0: [
                 [self.action1, self.state1, 0.521],
@@ -131,6 +131,42 @@ class MyTestCase(unittest.TestCase):
                 self.assertEqual(e_act, act)
                 self.assertEqual(e_st, st)
                 self.assertAlmostEqual(e_int, intention, places=3)
+
+    def test_why(self):
+        useless_answer = dict()
+        useless_action_why = self.ipg_xai.answer_why(self.state0, self.action0)
+        self.assertEqual(useless_answer, useless_action_why)
+        useless_action_why = self.ipg_xai.answer_why(self.state1, self.action1)
+        self.assertEqual(useless_answer, useless_action_why)
+        intention_increases_answer = {
+            self.desire0: {
+                "expected": 0.20833,
+                "prob_increase": 0.8,
+                "expected_pos_increase": 0.3125,
+            }
+        }
+        intention_increases_action_why = self.ipg_xai.answer_why(
+            self.state0, self.action1
+        )
+        self.assertDictAlmostEqual(
+            intention_increases_answer, intention_increases_action_why, places=3
+        )
+        desire_fulfilled_answer = {self.desire0: "fulfilled"}
+        intention_fufilled_action_why = self.ipg_xai.answer_why(
+            self.state1, self.action0
+        )
+        self.assertEqual(desire_fulfilled_answer, intention_fufilled_action_why)
+
+    def assertDictAlmostEqual(self, d1, d2, places):
+        self.assertIsInstance(d1, dict)
+        self.assertIsInstance(d2, dict)
+        self.assertEqual(d1.keys(), d2.keys())
+
+        for v1, v2 in zip(d1.values(), d2.values()):
+            if isinstance(v1, dict):
+                self.assertDictAlmostEqual(v1, v2, places=places)
+            else:
+                self.assertAlmostEqual(v1, v2, places=places)
 
 
 if __name__ == "__main__":

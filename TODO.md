@@ -5,8 +5,8 @@
 - [x] intention_aware_policy_graph
 - [x] integrate code from Node into intention_aware_policy_graph
   - [x] either into the AbstractIPG or IPG class
-  - [ ] XAI questions in a different IPG_XAI_analyser file
-    - [ ] Why
+  - [x] XAI questions in a different IPG_XAI_analyser file
+    - [x] Why
     - [x] How
     - [x] What
   - [ ] remove node.py

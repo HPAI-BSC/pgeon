@@ -311,7 +311,7 @@ class IPG(PolicyGraph, AbstractIPG):
 
     def get_intention(self, s: StateID, desire: Desire):
         try:
-            return self.graph.nodes[s]["intention"][desire.name]
+            return self.graph.nodes[s]["intention"][desire]
         except KeyError:
             return 0
 
@@ -323,10 +323,10 @@ class IPG(PolicyGraph, AbstractIPG):
 
     def _set_intention(self, s, desire, new_int):
         try:
-            self.graph.nodes[s]["intention"][desire.name] = new_int
+            self.graph.nodes[s]["intention"][desire] = new_int
         except KeyError:
             self.graph.nodes[s]["intention"] = dict()
-            self.graph.nodes[s]["intention"][desire.name] = new_int
+            self.graph.nodes[s]["intention"][desire] = new_int
 
     def _prob_s(self, s: StateID):
         return self.graph.nodes[s].probability
@@ -421,7 +421,7 @@ class IPG(PolicyGraph, AbstractIPG):
     ):
         # TODO: This should eventually be a method of AbstractIPG
         desire_name = desire.name
-        self._update_intention(node, desire_name, propagated_intention)
+        self._update_intention(node, desire, propagated_intention)
 
         parents = set([orig for orig, _ in self.graph.in_edges(node)])
 
@@ -456,10 +456,10 @@ class IPG(PolicyGraph, AbstractIPG):
                         new_coincider_intention_value,
                     )
 
-    def _update_intention(self, node, desire_name, intention):
+    def _update_intention(self, node, desire, intention):
         graph_node = self.graph.nodes[node]
-        current_intention_val = graph_node["intention"][desire_name]
-        graph_node["intention"][desire_name] = current_intention_val + intention
+        current_intention_val = graph_node["intention"][desire]
+        graph_node["intention"][desire] = current_intention_val + intention
 
     def get_action_probability(self, state: StateID) -> Dict[ActionID, float]:
         # TODO: This should go in the representation parent class
