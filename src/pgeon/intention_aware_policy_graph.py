@@ -10,7 +10,6 @@ from tqdm import tqdm
 from pgeon.agent import Agent
 from pgeon.desire import Desire
 from pgeon.discretizer import Discretizer, Predicate, PredicateBasedStateRepresentation
-from pgeon.node import Node, PropoNode
 from pgeon.policy_graph import PolicyGraph, PolicyRepresentation
 
 ActionID = str
@@ -167,7 +166,7 @@ class AbstractIPG(abc.ABC):
         return attributed_intention_probabilities, expected_intentions
 
     @abc.abstractmethod
-    def stateID_to_node(self, s: StateID) -> Node:
+    def stateID_to_node(self, s: StateID) -> StateID:
         pass
 
     @abc.abstractmethod
@@ -241,10 +240,6 @@ class IPG(PolicyGraph, AbstractIPG):
             list()
         )  # TODO: temp fix since AbstractIPG init is not callable here
         self.verbose = verbose
-
-        self.node_reference = {
-            node: PropoNode.from_graph_node(node) for node in self.graph.nodes
-        }
 
     def get_possible_actions(self, s: StateID) -> List[ActionID]:
         # Returns any a s.t. P(a|s)>0
@@ -409,7 +404,7 @@ class IPG(PolicyGraph, AbstractIPG):
         ]
         return sum(prob)
 
-    def stateID_to_node(self, s: StateID) -> Node:
+    def stateID_to_node(self, s: StateID) -> StateID:
         return self.graph.nodes[s]
 
     def propagate_intention(

@@ -9,7 +9,7 @@
     - [x] Why
     - [x] How
     - [x] What
-  - [ ] remove node.py
+  - [x] remove node.py
 - [x] write tests
   - [x] test_intention_aware_policy_graph.py
   - [x] test_ipg_xai.py

@@ -34,8 +34,6 @@ class IPG_XAI_analyser:
         how_paths_per_desire = dict()
         for desire in desires:
             x = self.ipg.check_desire(state, desire)
-            print(desire)
-            print(state)
             if x is not None:
                 how_paths_per_desire[desire] = [
                     [desire.action_idx, None, None]
