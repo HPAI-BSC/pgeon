@@ -712,6 +712,101 @@ class GraphRepresentation(PolicyRepresentation):
         node_info = {}  # id -> node
         action_info = {}  # id -> action
 
+        def parse_node_block(lines, start_idx):
+            node_lines = [lines[start_idx]]
+            i = start_idx
+            while not node_lines[-1].strip().endswith("});") and i + 1 < len(lines):
+                i += 1
+                node_lines.append(lines[i].strip())
+            node_block = " ".join(node_lines)
+            if "{" in node_block and "}" in node_block:
+                attrs_str = node_block.split("{", 1)[1].rsplit("}", 1)[0]
+                node_id = int(node_block.split("s")[1].split(":")[0])
+                attrs = {}
+                for attr in attrs_str.split(","):
+                    attr = attr.strip()
+                    if not attr or ":" not in attr:
+                        continue
+                    key, value = attr.split(":", 1)
+                    key = key.strip()
+                    value = value.strip()
+                    if key == "uid":
+                        continue
+                    elif key == "value":
+                        attrs["value"] = value.strip('"')
+                    elif key == "probability":
+                        attrs["probability"] = float(value)
+                    elif key == "frequency":
+                        attrs["frequency"] = int(value)
+                if "value" not in attrs:
+                    return i, None
+                state = discretizer.str_to_state(attrs["value"])
+                representation.add_state(
+                    state,
+                    probability=attrs.get("probability", 0),
+                    frequency=attrs.get("frequency", 0),
+                )
+                node_info[node_id] = state
+                return i, node_id
+            return i, None
+
+        def parse_action_block(lines, start_idx):
+            action_lines = [lines[start_idx]]
+            i = start_idx
+            while not action_lines[-1].strip().endswith("});") and i + 1 < len(lines):
+                i += 1
+                action_lines.append(lines[i].strip())
+            action_block = " ".join(action_lines)
+            if "{" in action_block and "}" in action_block:
+                attrs_str = action_block.split("{", 1)[1].rsplit("}", 1)[0]
+                action_id = int(action_block.split("a")[1].split(":")[0])
+                attrs = {}
+                for attr in attrs_str.split(","):
+                    attr = attr.strip()
+                    if not attr or ":" not in attr:
+                        continue
+                    key, value = attr.split(":", 1)
+                    key = key.strip()
+                    value = value.strip()
+                    if key == "uid":
+                        continue
+                    elif key == "value":
+                        try:
+                            action_info[action_id] = int(value)
+                        except ValueError:
+                            pass
+                return i
+            return i
+
+        def parse_edge_block(line):
+            edge_pattern = re.compile(
+                r"MATCH \(s(\d+):State\).*MATCH \(s(\d+):State\).*CREATE \(s\d+\)-\[:a(\d+) \{([^}]*)\}\]->\(s\d+\);"
+            )
+            match = edge_pattern.search(line)
+            if not match:
+                return
+            from_id = int(match.group(1))
+            to_id = int(match.group(2))
+            action_id = int(match.group(3))
+            attrs = match.group(4)
+            prob = 0.0
+            freq = 0
+            for attr in attrs.split(","):
+                attr = attr.strip()
+                if attr.startswith("probability:"):
+                    prob = float(attr.split(":", 1)[1])
+                elif attr.startswith("frequency:"):
+                    freq = int(attr.split(":", 1)[1])
+            if from_id not in node_info or to_id not in node_info:
+                return
+            representation.add_transition(
+                node_info[from_id],
+                node_info[to_id],
+                action_info[action_id],
+                probability=prob,
+                frequency=freq,
+            )
+
         with open(path, "r") as f:
             lines = list(f)
             i = 0
@@ -722,104 +817,11 @@ class GraphRepresentation(PolicyRepresentation):
                     continue
 
                 if line.startswith("CREATE (s"):
-                    # Start accumulating node lines
-                    node_lines = [line]
-                    while not node_lines[-1].strip().endswith("});") and i + 1 < len(
-                        lines
-                    ):
-                        i += 1
-                        node_lines.append(lines[i].strip())
-                    node_block = " ".join(node_lines)
-                    # Extract the attributes section between curly braces
-                    if "{" in node_block and "}" in node_block:
-                        attrs_str = node_block.split("{", 1)[1].rsplit("}", 1)[0]
-                        node_id = int(node_block.split("s")[1].split(":")[0])
-                        attrs = {}
-                        for attr in attrs_str.split(","):
-                            attr = attr.strip()
-                            if not attr or ":" not in attr:
-                                continue
-                            key, value = attr.split(":", 1)
-                            key = key.strip()
-                            value = value.strip()
-                            if key == "uid":
-                                continue
-                            elif key == "value":
-                                attrs["value"] = value.strip('"')
-                            elif key == "probability":
-                                attrs["probability"] = float(value)
-                            elif key == "frequency":
-                                attrs["frequency"] = int(value)
-                        if "value" not in attrs:
-                            continue  # skip malformed node
-                        state = discretizer.str_to_state(attrs["value"])
-                        representation.add_state(
-                            state,
-                            probability=attrs.get("probability", 0),
-                            frequency=attrs.get("frequency", 0),
-                        )
-                        node_info[node_id] = state
-
+                    i, _ = parse_node_block(lines, i)
                 elif line.startswith("CREATE (a"):
-                    # Start accumulating action lines
-                    action_lines = [line]
-                    while not action_lines[-1].strip().endswith("});") and i + 1 < len(
-                        lines
-                    ):
-                        i += 1
-                        action_lines.append(lines[i].strip())
-                    action_block = " ".join(action_lines)
-                    # Extract the attributes section between curly braces
-                    if "{" in action_block and "}" in action_block:
-                        attrs_str = action_block.split("{", 1)[1].rsplit("}", 1)[0]
-                        action_id = int(action_block.split("a")[1].split(":")[0])
-                        attrs = {}
-                        for attr in attrs_str.split(","):
-                            attr = attr.strip()
-                            if not attr or ":" not in attr:
-                                continue
-                            key, value = attr.split(":", 1)
-                            key = key.strip()
-                            value = value.strip()
-                            if key == "uid":
-                                continue
-                            elif key == "value":
-                                try:
-                                    action_info[action_id] = int(value)
-                                except ValueError:
-                                    pass  # skip malformed action
-
+                    i = parse_action_block(lines, i)
                 elif line.startswith("MATCH"):
-                    # Parse edge creation using regex
-                    edge_pattern = re.compile(
-                        r"MATCH \(s(\d+):State\).*MATCH \(s(\d+):State\).*CREATE \(s\d+\)-\[:a(\d+) \{([^}]*)\}\]->\(s\d+\);"
-                    )
-                    match = edge_pattern.search(line)
-                    if not match:
-                        i += 1
-                        continue  # skip malformed edge
-                    from_id = int(match.group(1))
-                    to_id = int(match.group(2))
-                    action_id = int(match.group(3))
-                    attrs = match.group(4)
-                    prob = 0.0
-                    freq = 0
-                    for attr in attrs.split(","):
-                        attr = attr.strip()
-                        if attr.startswith("probability:"):
-                            prob = float(attr.split(":", 1)[1])
-                        elif attr.startswith("frequency:"):
-                            freq = int(attr.split(":", 1)[1])
-                    if from_id not in node_info or to_id not in node_info:
-                        continue
-                    representation.add_transition(
-                        node_info[from_id],
-                        node_info[to_id],
-                        action_info[action_id],
-                        probability=prob,
-                        frequency=freq,
-                    )
-
+                    parse_edge_block(line)
                 i += 1
 
         return representation
