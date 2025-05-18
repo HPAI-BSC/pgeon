@@ -1,12 +1,12 @@
 import abc
 import csv
+import re
 from pathlib import Path
 from typing import (
     Any,
     Collection,
     Dict,
     Iterator,
-    List,
     Optional,
     Tuple,
     cast,
@@ -43,6 +43,19 @@ class PolicyRepresentation(abc.ABC):
     @abc.abstractmethod
     def save_csv(self, nodes_path: Path, edges_path: Path):
         """Save a policy representation to a set of CSV files."""
+        ...
+
+    @abc.abstractmethod
+    def save_gram(self, discretizer: Discretizer, path: Path):
+        """Save a policy representation to a gram file."""
+        ...
+
+    @staticmethod
+    @abc.abstractmethod
+    def load_gram(
+        graph_backend: str, discretizer: Discretizer, path: Path
+    ) -> "PolicyRepresentation":
+        """Load a policy representation from a gram file."""
         ...
 
     @abc.abstractmethod
@@ -450,7 +463,7 @@ class GraphRepresentation(PolicyRepresentation):
 
     def get_transitions_from_state(
         self, state: StateRepresentation
-    ) -> Dict[Action, List[StateRepresentation]]:
+    ) -> Dict[Action, Collection[StateRepresentation]]:
         """Get a mapping of actions to possible next states from a given state."""
         if not self.has_state(state):
             return {}
@@ -630,6 +643,196 @@ class GraphRepresentation(PolicyRepresentation):
                         action.get("frequency", 0),
                     ]
                 )
+
+    def save_gram(self, discretizer: Discretizer, path: Path):
+        if not path.suffix == ".gram":
+            raise ValueError(f"File must have a .gram extension, got {path}")
+        if path.exists():
+            raise FileExistsError(f"File {path} already exists")
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        node_info = {
+            node: {
+                "id": i,
+                "value": discretizer.state_to_str(node),
+                "probability": self.get_node(node).get("probability", 0),
+                "frequency": self.get_node(node).get("frequency", 0),
+            }
+            for i, node in enumerate(self.nodes())
+        }
+        action_info = {
+            action: {"id": i, "value": str(action)}
+            for i, action in enumerate(
+                set(data.get("action") for _, _, data in self.edges(data=True))
+            )
+        }
+
+        with open(path, "w+") as f:
+            # Write nodes
+            for _, info in node_info.items():
+                f.write(
+                    f"\nCREATE (s{info['id']}:State "
+                    + "{"
+                    + f'\n  uid: "s{info["id"]}",\n  value: "{info["value"]}",\n  probability: {info["probability"]}, \n  frequency:{info["frequency"]}'
+                    + "\n});"
+                )
+
+            # Write actions
+            for _, action in action_info.items():
+                f.write(
+                    f"\nCREATE (a{action['id']}:Action "
+                    + "{"
+                    + f'\n  uid: "a{action["id"]}",\n  value:{action["value"]}'
+                    + "\n});"
+                )
+
+            # Write edges
+            for edge in self.edges(data=True):
+                n_from, n_to, data = edge
+                action = data.get("action")
+                if action is not None:
+                    f.write(
+                        f'\nMATCH (s{node_info[n_from]["id"]}:State) WHERE s{node_info[n_from]["id"]}.uid = "s{node_info[n_from]["id"]}" MATCH (s{node_info[n_to]["id"]}:State) WHERE s{node_info[n_to]["id"]}.uid = "s{node_info[n_to]["id"]}" CREATE (s{node_info[n_from]["id"]})-[:a{action_info[action]["id"]} '
+                        + "{"
+                        + f"probability:{data.get('probability', 0)}, frequency:{data.get('frequency', 0)}"
+                        + "}"
+                        + f"]->(s{node_info[n_to]['id']});"
+                    )
+
+    @staticmethod
+    def load_gram(
+        graph_backend: str, discretizer: Discretizer, path: Path
+    ) -> "GraphRepresentation":
+        if not path.suffix == ".gram":
+            raise ValueError(f"File must have a .gram extension, got {path}")
+        if not path.exists():
+            raise FileNotFoundError(f"File {path} does not exist")
+
+        representation = GraphRepresentation(graph_backend)
+        node_info = {}  # id -> node
+        action_info = {}  # id -> action
+
+        with open(path, "r") as f:
+            lines = list(f)
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
+                if not line:
+                    i += 1
+                    continue
+
+                if line.startswith("CREATE (s"):
+                    # Start accumulating node lines
+                    node_lines = [line]
+                    while not node_lines[-1].strip().endswith("});") and i + 1 < len(
+                        lines
+                    ):
+                        i += 1
+                        node_lines.append(lines[i].strip())
+                    node_block = " ".join(node_lines)
+                    print(f"Processing node block: {node_block}")
+                    # Extract the attributes section between curly braces
+                    if "{" in node_block and "}" in node_block:
+                        attrs_str = node_block.split("{", 1)[1].rsplit("}", 1)[0]
+                        node_id = int(node_block.split("s")[1].split(":")[0])
+                        print(f"Node ID: {node_id}")
+                        attrs = {}
+                        for attr in attrs_str.split(","):
+                            attr = attr.strip()
+                            if not attr or ":" not in attr:
+                                continue
+                            key, value = attr.split(":", 1)
+                            key = key.strip()
+                            value = value.strip()
+                            print(f"Processing attribute - key: {key}, value: {value}")
+                            if key == "uid":
+                                continue
+                            elif key == "value":
+                                attrs["value"] = value.strip('"')
+                            elif key == "probability":
+                                attrs["probability"] = float(value)
+                            elif key == "frequency":
+                                attrs["frequency"] = int(value)
+                        print(f"Final node attributes: {attrs}")
+                        if "value" not in attrs:
+                            print("Skipping node - no value attribute")
+                            continue  # skip malformed node
+                        state = discretizer.str_to_state(attrs["value"])
+                        print(f"Created state: {state}")
+                        representation.add_state(
+                            state,
+                            probability=attrs.get("probability", 0),
+                            frequency=attrs.get("frequency", 0),
+                        )
+                        node_info[node_id] = state
+                        print(f"Added node {node_id} to node_info")
+
+                elif line.startswith("CREATE (a"):
+                    # Start accumulating action lines
+                    action_lines = [line]
+                    while not action_lines[-1].strip().endswith("});") and i + 1 < len(
+                        lines
+                    ):
+                        i += 1
+                        action_lines.append(lines[i].strip())
+                    action_block = " ".join(action_lines)
+                    print(f"Processing action block: {action_block}")
+                    # Extract the attributes section between curly braces
+                    if "{" in action_block and "}" in action_block:
+                        attrs_str = action_block.split("{", 1)[1].rsplit("}", 1)[0]
+                        action_id = int(action_block.split("a")[1].split(":")[0])
+                        print(f"Action ID: {action_id}")
+                        attrs = {}
+                        for attr in attrs_str.split(","):
+                            attr = attr.strip()
+                            if not attr or ":" not in attr:
+                                continue
+                            key, value = attr.split(":", 1)
+                            key = key.strip()
+                            value = value.strip()
+                            print(f"Processing attribute - key: {key}, value: {value}")
+                            if key == "uid":
+                                continue
+                            elif key == "value":
+                                try:
+                                    action_info[action_id] = int(value)
+                                except ValueError:
+                                    pass  # skip malformed action
+
+                elif line.startswith("MATCH"):
+                    # Parse edge creation using regex
+                    edge_pattern = re.compile(
+                        r"MATCH \(s(\d+):State\).*MATCH \(s(\d+):State\).*CREATE \(s\d+\)-\[:a(\d+) \{([^}]*)\}\]->\(s\d+\);"
+                    )
+                    match = edge_pattern.search(line)
+                    if not match:
+                        i += 1
+                        continue  # skip malformed edge
+                    from_id = int(match.group(1))
+                    to_id = int(match.group(2))
+                    action_id = int(match.group(3))
+                    attrs = match.group(4)
+                    prob = 0.0
+                    freq = 0
+                    for attr in attrs.split(","):
+                        attr = attr.strip()
+                        if attr.startswith("probability:"):
+                            prob = float(attr.split(":", 1)[1])
+                        elif attr.startswith("frequency:"):
+                            freq = int(attr.split(":", 1)[1])
+                    if from_id not in node_info or to_id not in node_info:
+                        continue
+                    representation.add_transition(
+                        node_info[from_id],
+                        node_info[to_id],
+                        action_info[action_id],
+                        probability=prob,
+                        frequency=freq,
+                    )
+
+                i += 1
+
+        return representation
 
 
 class IntentionalPolicyGraphRepresentation(GraphRepresentation, IntentionMixin): ...
