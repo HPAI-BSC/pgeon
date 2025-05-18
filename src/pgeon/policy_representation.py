@@ -730,12 +730,10 @@ class GraphRepresentation(PolicyRepresentation):
                         i += 1
                         node_lines.append(lines[i].strip())
                     node_block = " ".join(node_lines)
-                    print(f"Processing node block: {node_block}")
                     # Extract the attributes section between curly braces
                     if "{" in node_block and "}" in node_block:
                         attrs_str = node_block.split("{", 1)[1].rsplit("}", 1)[0]
                         node_id = int(node_block.split("s")[1].split(":")[0])
-                        print(f"Node ID: {node_id}")
                         attrs = {}
                         for attr in attrs_str.split(","):
                             attr = attr.strip()
@@ -744,7 +742,6 @@ class GraphRepresentation(PolicyRepresentation):
                             key, value = attr.split(":", 1)
                             key = key.strip()
                             value = value.strip()
-                            print(f"Processing attribute - key: {key}, value: {value}")
                             if key == "uid":
                                 continue
                             elif key == "value":
@@ -753,19 +750,15 @@ class GraphRepresentation(PolicyRepresentation):
                                 attrs["probability"] = float(value)
                             elif key == "frequency":
                                 attrs["frequency"] = int(value)
-                        print(f"Final node attributes: {attrs}")
                         if "value" not in attrs:
-                            print("Skipping node - no value attribute")
                             continue  # skip malformed node
                         state = discretizer.str_to_state(attrs["value"])
-                        print(f"Created state: {state}")
                         representation.add_state(
                             state,
                             probability=attrs.get("probability", 0),
                             frequency=attrs.get("frequency", 0),
                         )
                         node_info[node_id] = state
-                        print(f"Added node {node_id} to node_info")
 
                 elif line.startswith("CREATE (a"):
                     # Start accumulating action lines
@@ -776,12 +769,10 @@ class GraphRepresentation(PolicyRepresentation):
                         i += 1
                         action_lines.append(lines[i].strip())
                     action_block = " ".join(action_lines)
-                    print(f"Processing action block: {action_block}")
                     # Extract the attributes section between curly braces
                     if "{" in action_block and "}" in action_block:
                         attrs_str = action_block.split("{", 1)[1].rsplit("}", 1)[0]
                         action_id = int(action_block.split("a")[1].split(":")[0])
-                        print(f"Action ID: {action_id}")
                         attrs = {}
                         for attr in attrs_str.split(","):
                             attr = attr.strip()
@@ -790,7 +781,6 @@ class GraphRepresentation(PolicyRepresentation):
                             key, value = attr.split(":", 1)
                             key = key.strip()
                             value = value.strip()
-                            print(f"Processing attribute - key: {key}, value: {value}")
                             if key == "uid":
                                 continue
                             elif key == "value":
