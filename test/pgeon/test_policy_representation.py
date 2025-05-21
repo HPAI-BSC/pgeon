@@ -162,6 +162,43 @@ class TestPolicyRepresentation(unittest.TestCase):
             ),
         )
 
+    def test_save_and_load_gram(self):
+        """Test saving and loading a policy representation from gram files."""
+        gram_path = self.tmp_dir / "test.gram"
+        self.maxDiff = None
+        self.representation.add_states_from(
+            [self.state0, self.state1, self.state2, self.state3],
+            frequency=1,
+            probability=0.25,
+        )
+        self.representation.add_transition(
+            self.state0, self.state1, self.action0, frequency=5, probability=1.0
+        )
+
+        self.representation.save_gram(self.discretizer, gram_path)
+        loaded_representation = GraphRepresentation.load_gram(
+            "networkx", self.discretizer, gram_path
+        )
+
+        self.assertEqual(len(loaded_representation.get_all_states()), 4)
+        self.assertEqual(len(loaded_representation.get_all_transitions()), 1)
+        self.assertEqual(
+            loaded_representation.get_state_attributes("frequency"),
+            self.representation.get_state_attributes("frequency"),
+        )
+        self.assertEqual(
+            loaded_representation.get_state_attributes("probability"),
+            self.representation.get_state_attributes("probability"),
+        )
+        self.assertEqual(
+            loaded_representation.get_transition_data(
+                self.state0, self.state1, self.action0
+            ),
+            self.representation.get_transition_data(
+                self.state0, self.state1, self.action0
+            ),
+        )
+
     def test_get_possible_actions(self):
         """Test getting possible actions from a state."""
         self.setup_test_graph()
