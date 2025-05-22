@@ -348,6 +348,7 @@ class GraphRepresentation(PolicyRepresentation):
 
     def prob(self, query: ProbabilityQuery) -> float:
         """Calculate probability for a given query."""
+        # TODO: Currently on AbstractIPG class
         ...
 
     # Implementation of PolicyRepresentation interface using graph terminology
