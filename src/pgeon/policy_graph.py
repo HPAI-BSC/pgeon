@@ -3,7 +3,7 @@ import pickle
 import random
 from collections import defaultdict
 from enum import Enum, auto
-from typing import Any, List, Optional, Set, Tuple, Union, Sequence, Type
+from typing import Any, List, Optional, Sequence, Set, Tuple, Type, Union
 
 import gymnasium as gym
 import networkx as nx
@@ -13,7 +13,7 @@ import tqdm
 from pgeon.agent import Agent
 from pgeon.discretizer import Discretizer
 from pgeon.policy_approximator import PolicyApproximatorFromBasicObservation
-from pgeon.policy_representation import PolicyRepresentation, GraphRepresentation
+from pgeon.policy_representation import GraphRepresentation, PolicyRepresentation
 
 
 class PolicyGraph(PolicyApproximatorFromBasicObservation):
@@ -21,7 +21,14 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation):
     # CREATION/LOADING
     ######################
 
-    def __init__(self, discretizer: Discretizer, policy_representation: PolicyRepresentation, environment: gym.Env, agent: Agent):
+    def __init__(
+        self,
+        discretizer: Discretizer,
+        policy_representation: PolicyRepresentation,
+        environment: gym.Env,
+        agent: Agent,
+    ):
+        # TODO: Consider using a class for the configuration (too many args!)
         super().__init__(discretizer, policy_representation, environment, agent)
         self.discretizer = discretizer
         self.policy_representation = policy_representation
@@ -178,7 +185,9 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation):
             trajectory[i] for i in range(len(trajectory)) if i % 2 == 0
         ]
         all_new_states_in_trajectory = {
-            state for state in set(states_in_trajectory) if not self.graph.has_node(state)
+            state
+            for state in set(states_in_trajectory)
+            if not self.graph.has_node(state)
         }
         self.graph.add_nodes_from(all_new_states_in_trajectory, frequency=0)
 
@@ -218,7 +227,8 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation):
             for dest_node in self.graph[node]:
                 for action in self.graph.get_edge_data(node, dest_node):
                     self.graph[node][dest_node][action]["probability"] = (
-                        self.graph[node][dest_node][action]["frequency"] / total_frequency
+                        self.graph[node][dest_node][action]["frequency"]
+                        / total_frequency
                     )
 
     def fit(
@@ -609,19 +619,19 @@ class PolicyGraph(PolicyApproximatorFromBasicObservation):
             raise NotImplementedError("format must be one of pickle, csv or gram")
 
         if format == "csv":
-            assert len(path) == 3, (
-                "When saving in CSV format, path must be a list of 3 elements (nodes, edges, trajectories)!"
-            )
+            assert (
+                len(path) == 3
+            ), "When saving in CSV format, path must be a list of 3 elements (nodes, edges, trajectories)!"
             self._save_csv(*path)
         elif format == "gram":
-            assert isinstance(path, str), (
-                "When saving in gram format, path must be a string!"
-            )
+            assert isinstance(
+                path, str
+            ), "When saving in gram format, path must be a string!"
             self._save_gram(path)
         elif format == "pickle":
-            assert isinstance(path, str), (
-                "When saving in pickle format, path must be a string!"
-            )
+            assert isinstance(
+                path, str
+            ), "When saving in pickle format, path must be a string!"
             self._save_pickle(path)
         else:
             raise NotImplementedError
@@ -645,16 +655,15 @@ class PGBasedPolicy(Agent):
         node_not_found_mode: PGBasedPolicyNodeNotFoundMode = PGBasedPolicyNodeNotFoundMode.RANDOM_UNIFORM,
     ):
         self.pg = policy_graph
-        assert mode in [PGBasedPolicyMode.GREEDY, PGBasedPolicyMode.STOCHASTIC], (
-            "mode must be a member of the PGBasedPolicyMode enum!"
-        )
+        assert mode in [
+            PGBasedPolicyMode.GREEDY,
+            PGBasedPolicyMode.STOCHASTIC,
+        ], "mode must be a member of the PGBasedPolicyMode enum!"
         self.mode = mode
         assert node_not_found_mode in [
             PGBasedPolicyNodeNotFoundMode.RANDOM_UNIFORM,
             PGBasedPolicyNodeNotFoundMode.FIND_SIMILAR_NODES,
-        ], (
-            "node_not_found_mode must be a member of the PGBasedPolicyNodeNotFoundMode enum!"
-        )
+        ], "node_not_found_mode must be a member of the PGBasedPolicyNodeNotFoundMode enum!"
         self.node_not_found_mode = node_not_found_mode
 
         self.all_possible_actions = self._get_all_possible_actions()

@@ -1,23 +1,23 @@
 import abc
 import random
 from collections import defaultdict
+from enum import Enum, auto
 from typing import (
-    List,
     Any,
-    Optional,
-    Union,
-    Tuple,
     Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
     cast,
 )
-from gymnasium import Env
-from enum import Enum, auto
 
 import numpy as np
 import tqdm
+from gymnasium import Env
 
 from pgeon.agent import Agent
-from pgeon.discretizer import Discretizer, StateRepresentation, Action
+from pgeon.discretizer import Action, Discretizer, StateRepresentation
 from pgeon.policy_representation import PolicyRepresentation
 
 
@@ -25,6 +25,7 @@ class Desire: ...
 
 
 class PolicyApproximator(abc.ABC):
+
     def __init__(
         self, discretizer: Discretizer, policy_representation: PolicyRepresentation
     ):
@@ -55,6 +56,7 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
     Policy approximator that approximates the policy from basic observations,
     given an agent and an environment.
     """
+
     def __init__(
         self,
         discretizer: Discretizer,

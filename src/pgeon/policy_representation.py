@@ -1,17 +1,20 @@
 import abc
+import csv
+import re
+from pathlib import Path
 from typing import (
-    Collection,
-    Optional,
-    Tuple,
     Any,
+    Collection,
     Dict,
     Iterator,
+    Optional,
+    Tuple,
     cast,
-    List,
 )
+
 import networkx as nx
 
-from pgeon.discretizer import Discretizer, StateRepresentation, Action
+from pgeon.discretizer import Action, Discretizer, StateRepresentation
 
 
 class ProbabilityQuery: ...
@@ -31,13 +34,28 @@ class PolicyRepresentation(abc.ABC):
 
     @staticmethod
     @abc.abstractmethod
-    def load(path: str) -> "PolicyRepresentation":
-        """Load a policy representation from a file."""
+    def load_csv(
+        graph_backend: str, discretizer: Discretizer, nodes_path: Path, edges_path: Path
+    ) -> "PolicyRepresentation":
+        """Load a policy representation from a set of CSV files."""
         ...
 
     @abc.abstractmethod
-    def save(self, ext: str, path: str):
-        """Save a policy representation to a file."""
+    def save_csv(self, nodes_path: Path, edges_path: Path):
+        """Save a policy representation to a set of CSV files."""
+        ...
+
+    @abc.abstractmethod
+    def save_gram(self, discretizer: Discretizer, path: Path):
+        """Save a policy representation to a gram file."""
+        ...
+
+    @staticmethod
+    @abc.abstractmethod
+    def load_gram(
+        graph_backend: str, discretizer: Discretizer, path: Path
+    ) -> "PolicyRepresentation":
+        """Load a policy representation from a gram file."""
         ...
 
     @abc.abstractmethod
@@ -196,6 +214,9 @@ class GraphRepresentation(PolicyRepresentation):
         def has_node(self, node: StateRepresentation) -> bool: ...
 
         @abc.abstractmethod
+        def get_node(self, node: StateRepresentation) -> Dict[str, Any]: ...
+
+        @abc.abstractmethod
         def has_edge(
             self,
             node_from: StateRepresentation,
@@ -215,16 +236,25 @@ class GraphRepresentation(PolicyRepresentation):
         ) -> Iterator: ...
 
         @abc.abstractmethod
+        def get_node_attributes(
+            self, attribute_name: str
+        ) -> Dict[StateRepresentation, Any]: ...
+
+        @abc.abstractmethod
+        def set_node_attributes(
+            self, attributes: Dict[StateRepresentation, Any], attribute_name: str
+        ) -> None: ...
+
+        @abc.abstractmethod
         def clear(self) -> None: ...
 
         @abc.abstractmethod
         def __getitem__(self, node: StateRepresentation) -> Any: ...
 
+        # TODO: Make the return type include other possible backends
         @property
         @abc.abstractmethod
-        def nx_graph(self) -> nx.MultiDiGraph:
-            """Return the underlying networkx graph if available"""
-            ...
+        def backend(self) -> nx.MultiDiGraph: ...
 
     class NetworkXGraph(Graph):
         """NetworkX implementation of the Graph interface."""
@@ -268,6 +298,9 @@ class GraphRepresentation(PolicyRepresentation):
         def has_node(self, node: StateRepresentation) -> bool:
             return self._nx_graph.has_node(node)
 
+        def get_node(self, node: StateRepresentation) -> Dict[str, Any]:
+            return self._nx_graph.nodes[node]
+
         def has_edge(
             self,
             node_from: StateRepresentation,
@@ -287,11 +320,21 @@ class GraphRepresentation(PolicyRepresentation):
         ) -> nx.reportviews.OutMultiEdgeView:
             return self._nx_graph.out_edges(node, data=data)
 
+        def get_node_attributes(
+            self, attribute_name: str
+        ) -> Dict[StateRepresentation, Any]:
+            return nx.get_node_attributes(self._nx_graph, attribute_name)
+
+        def set_node_attributes(
+            self, attributes: Dict[StateRepresentation, Any], attribute_name: str
+        ) -> None:
+            nx.set_node_attributes(self._nx_graph, attributes, attribute_name)
+
         def clear(self) -> None:
             self._nx_graph.clear()
 
         @property
-        def nx_graph(self) -> nx.MultiDiGraph:
+        def backend(self) -> nx.MultiDiGraph:
             return self._nx_graph
 
     def __init__(self, graph_backend: str = "networkx"):
@@ -305,6 +348,7 @@ class GraphRepresentation(PolicyRepresentation):
 
     def prob(self, query: ProbabilityQuery) -> float:
         """Calculate probability for a given query."""
+        # TODO: Currently on AbstractIPG class
         ...
 
     # Implementation of PolicyRepresentation interface using graph terminology
@@ -392,13 +436,13 @@ class GraphRepresentation(PolicyRepresentation):
         self, attribute_name: str
     ) -> Dict[StateRepresentation, Any]:
         """Get attributes for all states by name."""
-        return nx.get_node_attributes(self.graph.nx_graph, attribute_name)
+        return self.graph.get_node_attributes(attribute_name)
 
     def set_state_attributes(
         self, attributes: Dict[StateRepresentation, Any], attribute_name: str
     ) -> None:
         """Set attributes for states."""
-        nx.set_node_attributes(self.graph.nx_graph, attributes, attribute_name)
+        self.graph.set_node_attributes(attributes, attribute_name)
 
     def get_all_states(self) -> Collection[StateRepresentation]:
         """Get all states in the policy representation."""
@@ -420,7 +464,7 @@ class GraphRepresentation(PolicyRepresentation):
 
     def get_transitions_from_state(
         self, state: StateRepresentation
-    ) -> Dict[Action, List[StateRepresentation]]:
+    ) -> Dict[Action, Collection[StateRepresentation]]:
         """Get a mapping of actions to possible next states from a given state."""
         if not self.has_state(state):
             return {}
@@ -440,6 +484,9 @@ class GraphRepresentation(PolicyRepresentation):
 
     def add_node(self, node: StateRepresentation, **kwargs) -> None:
         self.add_state(node, **kwargs)
+
+    def get_node(self, node: StateRepresentation) -> Dict[str, Any]:
+        return self.graph.get_node(node)
 
     def add_nodes_from(self, nodes: Collection[StateRepresentation], **kwargs) -> None:
         self.add_states_from(nodes, **kwargs)
@@ -498,10 +545,287 @@ class GraphRepresentation(PolicyRepresentation):
     def get_overall_minimum_state_transition_probability(self) -> float: ...
 
     @staticmethod
-    def load(path: str) -> "PolicyRepresentation": ...
+    def load_csv(
+        graph_backend: str, discretizer: Discretizer, nodes_path: Path, edges_path: Path
+    ) -> "GraphRepresentation":
+        if not nodes_path.suffix == ".csv":
+            raise ValueError(f"Nodes file must have a .csv extension, got {nodes_path}")
+        if not edges_path.suffix == ".csv":
+            raise ValueError(f"Edges file must have a .csv extension, got {edges_path}")
 
-    def save(self, ext: str, path: str):
-        pass
+        if not nodes_path.exists():
+            raise FileNotFoundError(f"Nodes file {nodes_path} does not exist")
+        if not edges_path.exists():
+            raise FileNotFoundError(f"Edges file {edges_path} does not exist")
+
+        representation = GraphRepresentation(graph_backend)
+
+        node_ids_to_values = {}
+        with open(nodes_path, "r+") as f:
+            csv_r = csv.reader(f)
+            next(csv_r)
+
+            for id_str, value, prob, freq in csv_r:
+                state_id = int(id_str)
+                state_prob = float(prob)
+                state_freq = int(freq)
+                state_value = discretizer.str_to_state(value)
+
+                representation.graph.add_node(
+                    state_value,
+                    probability=state_prob,
+                    frequency=state_freq,
+                )
+                node_ids_to_values[state_id] = state_value
+
+        with open(edges_path, "r+") as f:
+            csv_r = csv.reader(f)
+            next(csv_r)
+
+            for node_from_id, node_to_id, action, prob, freq in csv_r:
+                node_from = node_ids_to_values[int(node_from_id)]
+                node_to = node_ids_to_values[int(node_to_id)]
+                # TODO Get discretizer to process the action id correctly;
+                #  we cannot assume the action will always be an int
+                action = int(action)
+                prob = float(prob)
+                freq = int(freq)
+
+                representation.graph.add_edge(
+                    node_from,
+                    node_to,
+                    key=action,
+                    frequency=freq,
+                    probability=prob,
+                    action=action,
+                )
+        return representation
+
+    def save_csv(self, discretizer: Discretizer, nodes_path: Path, edges_path: Path):
+        if not nodes_path.suffix == ".csv":
+            raise ValueError(f"Nodes file must have a .csv extension, got {nodes_path}")
+        if not edges_path.suffix == ".csv":
+            raise ValueError(f"Edges file must have a .csv extension, got {edges_path}")
+
+        if nodes_path.exists():
+            raise FileExistsError(f"Nodes file {nodes_path} already exists")
+        if edges_path.exists():
+            raise FileExistsError(f"Edges file {edges_path} already exists")
+
+        nodes_path.parent.mkdir(parents=True, exist_ok=True)
+        edges_path.parent.mkdir(parents=True, exist_ok=True)
+
+        node_ids = {}
+        with open(nodes_path, "w+") as f:
+            csv_w = csv.writer(f)
+            csv_w.writerow(["id", "value", "p(s)", "frequency"])
+            for elem_position, node in enumerate(self.nodes()):
+                node_ids[node] = elem_position
+                csv_w.writerow(
+                    [
+                        elem_position,
+                        discretizer.state_to_str(node),
+                        self.get_node(node).get("probability", 0),
+                        self.get_node(node).get("frequency", 0),
+                    ]
+                )
+
+        with open(edges_path, "w+") as f:
+            csv_w = csv.writer(f)
+            csv_w.writerow(["from", "to", "action", "p(s)", "frequency"])
+            for edge in self.edges(data=True):
+                state_from, state_to, action = edge
+                csv_w.writerow(
+                    [
+                        node_ids[state_from],
+                        node_ids[state_to],
+                        action.get("action", None),
+                        action.get("probability", 0),
+                        action.get("frequency", 0),
+                    ]
+                )
+
+    def save_gram(self, discretizer: Discretizer, path: Path):
+        if not path.suffix == ".gram":
+            raise ValueError(f"File must have a .gram extension, got {path}")
+        if path.exists():
+            raise FileExistsError(f"File {path} already exists")
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+        node_info = {
+            node: {
+                "id": i,
+                "value": discretizer.state_to_str(node),
+                "probability": self.get_node(node).get("probability", 0),
+                "frequency": self.get_node(node).get("frequency", 0),
+            }
+            for i, node in enumerate(self.nodes())
+        }
+        action_info = {
+            action: {"id": i, "value": str(action)}
+            for i, action in enumerate(
+                set(data.get("action") for _, _, data in self.edges(data=True))
+            )
+        }
+
+        with open(path, "w+") as f:
+            # Write nodes
+            for _, info in node_info.items():
+                f.write(
+                    f"\nCREATE (s{info['id']}:State "
+                    + "{"
+                    + f'\n  uid: "s{info["id"]}",\n  value: "{info["value"]}",\n  probability: {info["probability"]}, \n  frequency:{info["frequency"]}'
+                    + "\n});"
+                )
+
+            # Write actions
+            for _, action in action_info.items():
+                f.write(
+                    f"\nCREATE (a{action['id']}:Action "
+                    + "{"
+                    + f'\n  uid: "a{action["id"]}",\n  value:{action["value"]}'
+                    + "\n});"
+                )
+
+            # Write edges
+            for edge in self.edges(data=True):
+                n_from, n_to, data = edge
+                action = data.get("action")
+                if action is not None:
+                    f.write(
+                        f'\nMATCH (s{node_info[n_from]["id"]}:State) WHERE s{node_info[n_from]["id"]}.uid = "s{node_info[n_from]["id"]}" MATCH (s{node_info[n_to]["id"]}:State) WHERE s{node_info[n_to]["id"]}.uid = "s{node_info[n_to]["id"]}" CREATE (s{node_info[n_from]["id"]})-[:a{action_info[action]["id"]} '
+                        + "{"
+                        + f"probability:{data.get('probability', 0)}, frequency:{data.get('frequency', 0)}"
+                        + "}"
+                        + f"]->(s{node_info[n_to]['id']});"
+                    )
+
+    @staticmethod
+    def load_gram(
+        graph_backend: str, discretizer: Discretizer, path: Path
+    ) -> "GraphRepresentation":
+        if not path.suffix == ".gram":
+            raise ValueError(f"File must have a .gram extension, got {path}")
+        if not path.exists():
+            raise FileNotFoundError(f"File {path} does not exist")
+
+        representation = GraphRepresentation(graph_backend)
+        node_info = {}  # id -> node
+        action_info = {}  # id -> action
+
+        def parse_node_block(lines, start_idx):
+            node_lines = [lines[start_idx]]
+            i = start_idx
+            while not node_lines[-1].strip().endswith("});") and i + 1 < len(lines):
+                i += 1
+                node_lines.append(lines[i].strip())
+            node_block = " ".join(node_lines)
+            if "{" in node_block and "}" in node_block:
+                attrs_str = node_block.split("{", 1)[1].rsplit("}", 1)[0]
+                node_id = int(node_block.split("s")[1].split(":")[0])
+                attrs = {}
+                for attr in attrs_str.split(","):
+                    attr = attr.strip()
+                    if not attr or ":" not in attr:
+                        continue
+                    key, value = attr.split(":", 1)
+                    key = key.strip()
+                    value = value.strip()
+                    if key == "uid":
+                        continue
+                    elif key == "value":
+                        attrs["value"] = value.strip('"')
+                    elif key == "probability":
+                        attrs["probability"] = float(value)
+                    elif key == "frequency":
+                        attrs["frequency"] = int(value)
+                if "value" not in attrs:
+                    return i, None
+                state = discretizer.str_to_state(attrs["value"])
+                representation.add_state(
+                    state,
+                    probability=attrs.get("probability", 0),
+                    frequency=attrs.get("frequency", 0),
+                )
+                node_info[node_id] = state
+                return i, node_id
+            return i, None
+
+        def parse_action_block(lines, start_idx):
+            action_lines = [lines[start_idx]]
+            i = start_idx
+            while not action_lines[-1].strip().endswith("});") and i + 1 < len(lines):
+                i += 1
+                action_lines.append(lines[i].strip())
+            action_block = " ".join(action_lines)
+            if "{" in action_block and "}" in action_block:
+                attrs_str = action_block.split("{", 1)[1].rsplit("}", 1)[0]
+                action_id = int(action_block.split("a")[1].split(":")[0])
+                attrs = {}
+                for attr in attrs_str.split(","):
+                    attr = attr.strip()
+                    if not attr or ":" not in attr:
+                        continue
+                    key, value = attr.split(":", 1)
+                    key = key.strip()
+                    value = value.strip()
+                    if key == "uid":
+                        continue
+                    elif key == "value":
+                        try:
+                            action_info[action_id] = int(value)
+                        except ValueError:
+                            pass
+                return i
+            return i
+
+        def parse_edge_block(line):
+            edge_pattern = re.compile(
+                r"MATCH \(s(\d+):State\).*MATCH \(s(\d+):State\).*CREATE \(s\d+\)-\[:a(\d+) \{([^}]*)\}\]->\(s\d+\);"
+            )
+            match = edge_pattern.search(line)
+            if not match:
+                return
+            from_id = int(match.group(1))
+            to_id = int(match.group(2))
+            action_id = int(match.group(3))
+            attrs = match.group(4)
+            prob = 0.0
+            freq = 0
+            for attr in attrs.split(","):
+                attr = attr.strip()
+                if attr.startswith("probability:"):
+                    prob = float(attr.split(":", 1)[1])
+                elif attr.startswith("frequency:"):
+                    freq = int(attr.split(":", 1)[1])
+            if from_id not in node_info or to_id not in node_info:
+                return
+            representation.add_transition(
+                node_info[from_id],
+                node_info[to_id],
+                action_info[action_id],
+                probability=prob,
+                frequency=freq,
+            )
+
+        with open(path, "r") as f:
+            lines = list(f)
+            i = 0
+            while i < len(lines):
+                line = lines[i].strip()
+                if not line:
+                    i += 1
+                    continue
+
+                if line.startswith("CREATE (s"):
+                    i, _ = parse_node_block(lines, i)
+                elif line.startswith("CREATE (a"):
+                    i = parse_action_block(lines, i)
+                elif line.startswith("MATCH"):
+                    parse_edge_block(line)
+                i += 1
+
+        return representation
 
 
 class IntentionalPolicyGraphRepresentation(GraphRepresentation, IntentionMixin): ...
