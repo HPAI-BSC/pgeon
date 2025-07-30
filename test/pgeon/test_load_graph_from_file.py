@@ -22,8 +22,8 @@ class TestLoadGraphFromFile(unittest.TestCase):
         )
 
         self.assertEqual(pg._is_fit, True)
-        self.assertEqual(len(pg.ipg.nodes), 4)
-        self.assertEqual(len(pg.ipg.edges), 18)
+        self.assertEqual(len(pg.graph.nodes), 4)
+        self.assertEqual(len(pg.graph.edges), 18)
         self.assertEqual(pg._trajectories_of_last_fit, [])
 
         p = (
@@ -49,36 +49,38 @@ class TestLoadGraphFromFile(unittest.TestCase):
             ),
         )
 
-        self.assertIn(p[0], pg.ipg.nodes)
-        self.assertIn(p[1], pg.ipg.nodes)
-        self.assertIn(p[2], pg.ipg.nodes)
-        self.assertIn(p[3], pg.ipg.nodes)
-
-        self.assertAlmostEqual(pg.ipg.nodes[p[2]]["probability"], 0.51863, delta=0.001)
-        self.assertEqual(pg.ipg.nodes[p[2]]["frequency"], 2464)
-
-        self.assertIn((p[1], p[2], 1), pg.ipg.edges)
-        self.assertIn((p[2], p[1], 0), pg.ipg.edges)
-        self.assertIn((p[3], p[3], 1), pg.ipg.edges)
-        self.assertIn((p[2], p[1], 0), pg.ipg.edges)
-        self.assertIn((p[2], p[3], 0), pg.ipg.edges)
-        self.assertIn((p[1], p[0], 1), pg.ipg.edges)
+        self.assertIn(p[0], pg.graph.nodes)
+        self.assertIn(p[1], pg.graph.nodes)
+        self.assertIn(p[2], pg.graph.nodes)
+        self.assertIn(p[3], pg.graph.nodes)
 
         self.assertAlmostEqual(
-            pg.ipg.edges[(p[1], p[3], 1)]["probability"], 0.06126, delta=0.001
+            pg.graph.nodes[p[2]]["probability"], 0.51863, delta=0.001
         )
-        self.assertEqual(pg.ipg.edges[(p[1], p[3], 1)]["frequency"], 74)
-        self.assertEqual(pg.ipg.edges[(p[1], p[3], 1)]["action"], 1)
+        self.assertEqual(pg.graph.nodes[p[2]]["frequency"], 2464)
+
+        self.assertIn((p[1], p[2], 1), pg.graph.edges)
+        self.assertIn((p[2], p[1], 0), pg.graph.edges)
+        self.assertIn((p[3], p[3], 1), pg.graph.edges)
+        self.assertIn((p[2], p[1], 0), pg.graph.edges)
+        self.assertIn((p[2], p[3], 0), pg.graph.edges)
+        self.assertIn((p[1], p[0], 1), pg.graph.edges)
+
         self.assertAlmostEqual(
-            pg.ipg.edges[(p[1], p[1], 1)]["probability"], 0.26738, delta=0.001
+            pg.graph.edges[(p[1], p[3], 1)]["probability"], 0.06126, delta=0.001
         )
-        self.assertEqual(pg.ipg.edges[(p[1], p[1], 1)]["frequency"], 323)
-        self.assertEqual(pg.ipg.edges[(p[1], p[1], 1)]["action"], 1)
+        self.assertEqual(pg.graph.edges[(p[1], p[3], 1)]["frequency"], 74)
+        self.assertEqual(pg.graph.edges[(p[1], p[3], 1)]["action"], 1)
         self.assertAlmostEqual(
-            pg.ipg.edges[(p[3], p[0], 0)]["probability"], 0.21829, delta=0.001
+            pg.graph.edges[(p[1], p[1], 1)]["probability"], 0.26738, delta=0.001
         )
-        self.assertEqual(pg.ipg.edges[(p[3], p[0], 0)]["frequency"], 74)
-        self.assertEqual(pg.ipg.edges[(p[3], p[0], 0)]["action"], 0)
+        self.assertEqual(pg.graph.edges[(p[1], p[1], 1)]["frequency"], 323)
+        self.assertEqual(pg.graph.edges[(p[1], p[1], 1)]["action"], 1)
+        self.assertAlmostEqual(
+            pg.graph.edges[(p[3], p[0], 0)]["probability"], 0.21829, delta=0.001
+        )
+        self.assertEqual(pg.graph.edges[(p[3], p[0], 0)]["frequency"], 74)
+        self.assertEqual(pg.graph.edges[(p[3], p[0], 0)]["action"], 0)
 
     def test_load_pg_from_nodes_and_trajectories(self):
         pg = PolicyGraph.from_nodes_and_trajectories(
@@ -86,8 +88,8 @@ class TestLoadGraphFromFile(unittest.TestCase):
         )
 
         self.assertEqual(pg._is_fit, True)
-        self.assertEqual(len(pg.ipg.nodes), 4)
-        self.assertEqual(len(pg.ipg.edges), 18)
+        self.assertEqual(len(pg.graph.nodes), 4)
+        self.assertEqual(len(pg.graph.edges), 18)
         self.assertEqual(len(pg._trajectories_of_last_fit), 4)
 
         p = (
@@ -113,15 +115,15 @@ class TestLoadGraphFromFile(unittest.TestCase):
             ),
         )
 
-        self.assertIn(p[0], pg.ipg.nodes)
-        self.assertIn(p[1], pg.ipg.nodes)
-        self.assertIn(p[2], pg.ipg.nodes)
-        self.assertIn(p[3], pg.ipg.nodes)
+        self.assertIn(p[0], pg.graph.nodes)
+        self.assertIn(p[1], pg.graph.nodes)
+        self.assertIn(p[2], pg.graph.nodes)
+        self.assertIn(p[3], pg.graph.nodes)
 
-        self.assertEqual(pg.ipg.nodes[p[0]]["frequency"], 33)
-        self.assertEqual(pg.ipg.nodes[p[1]]["frequency"], 52)
-        self.assertEqual(pg.ipg.nodes[p[2]]["frequency"], 45)
-        self.assertEqual(pg.ipg.nodes[p[3]]["frequency"], 23)
+        self.assertEqual(pg.graph.nodes[p[0]]["frequency"], 33)
+        self.assertEqual(pg.graph.nodes[p[1]]["frequency"], 52)
+        self.assertEqual(pg.graph.nodes[p[2]]["frequency"], 45)
+        self.assertEqual(pg.graph.nodes[p[3]]["frequency"], 23)
 
         # TODO Bug: We forgot to add `normalize()` at the end of `from_nodes_and_trajectories()`
         # self.assertAlmostEqual(pg.nodes[p[0]]['probability'], 0.21569, delta=0.001)
@@ -129,42 +131,42 @@ class TestLoadGraphFromFile(unittest.TestCase):
         # self.assertAlmostEqual(pg.nodes[p[2]]['probability'], 0.29412, delta=0.001)
         # self.assertAlmostEqual(pg.nodes[p[3]]['probability'], 0.15033, delta=0.001)
 
-        self.assertIn((p[0], p[2], 1), pg.ipg.edges)
-        self.assertIn((p[0], p[1], 0), pg.ipg.edges)
-        self.assertIn((p[0], p[3], 1), pg.ipg.edges)
-        self.assertIn((p[1], p[1], 0), pg.ipg.edges)
-        self.assertIn((p[1], p[1], 1), pg.ipg.edges)
-        self.assertIn((p[1], p[0], 1), pg.ipg.edges)
-        self.assertIn((p[1], p[3], 1), pg.ipg.edges)
-        self.assertIn((p[1], p[2], 1), pg.ipg.edges)
-        self.assertIn((p[2], p[2], 1), pg.ipg.edges)
-        self.assertIn((p[2], p[2], 0), pg.ipg.edges)
-        self.assertIn((p[2], p[3], 0), pg.ipg.edges)
-        self.assertIn((p[2], p[0], 0), pg.ipg.edges)
-        self.assertIn((p[2], p[1], 0), pg.ipg.edges)
-        self.assertIn((p[3], p[1], 0), pg.ipg.edges)
-        self.assertIn((p[3], p[2], 1), pg.ipg.edges)
-        self.assertIn((p[3], p[0], 0), pg.ipg.edges)
-        self.assertIn((p[3], p[3], 1), pg.ipg.edges)
-        self.assertIn((p[3], p[3], 0), pg.ipg.edges)
-        self.assertEqual(pg.ipg.edges[(p[0], p[2], 1)]["frequency"], 10)
-        self.assertEqual(pg.ipg.edges[(p[0], p[1], 0)]["frequency"], 19)
-        self.assertEqual(pg.ipg.edges[(p[0], p[3], 1)]["frequency"], 3)
-        self.assertEqual(pg.ipg.edges[(p[1], p[1], 0)]["frequency"], 15)
-        self.assertEqual(pg.ipg.edges[(p[1], p[1], 1)]["frequency"], 12)
-        self.assertEqual(pg.ipg.edges[(p[1], p[0], 1)]["frequency"], 17)
-        self.assertEqual(pg.ipg.edges[(p[1], p[3], 1)]["frequency"], 4)
-        self.assertEqual(pg.ipg.edges[(p[1], p[2], 1)]["frequency"], 2)
-        self.assertEqual(pg.ipg.edges[(p[2], p[2], 1)]["frequency"], 13)
-        self.assertEqual(pg.ipg.edges[(p[2], p[2], 0)]["frequency"], 15)
-        self.assertEqual(pg.ipg.edges[(p[2], p[3], 0)]["frequency"], 7)
-        self.assertEqual(pg.ipg.edges[(p[2], p[0], 0)]["frequency"], 8)
-        self.assertEqual(pg.ipg.edges[(p[2], p[1], 0)]["frequency"], 1)
-        self.assertEqual(pg.ipg.edges[(p[3], p[1], 0)]["frequency"], 5)
-        self.assertEqual(pg.ipg.edges[(p[3], p[2], 1)]["frequency"], 5)
-        self.assertEqual(pg.ipg.edges[(p[3], p[0], 0)]["frequency"], 4)
-        self.assertEqual(pg.ipg.edges[(p[3], p[3], 1)]["frequency"], 4)
-        self.assertEqual(pg.ipg.edges[(p[3], p[3], 0)]["frequency"], 5)
+        self.assertIn((p[0], p[2], 1), pg.graph.edges)
+        self.assertIn((p[0], p[1], 0), pg.graph.edges)
+        self.assertIn((p[0], p[3], 1), pg.graph.edges)
+        self.assertIn((p[1], p[1], 0), pg.graph.edges)
+        self.assertIn((p[1], p[1], 1), pg.graph.edges)
+        self.assertIn((p[1], p[0], 1), pg.graph.edges)
+        self.assertIn((p[1], p[3], 1), pg.graph.edges)
+        self.assertIn((p[1], p[2], 1), pg.graph.edges)
+        self.assertIn((p[2], p[2], 1), pg.graph.edges)
+        self.assertIn((p[2], p[2], 0), pg.graph.edges)
+        self.assertIn((p[2], p[3], 0), pg.graph.edges)
+        self.assertIn((p[2], p[0], 0), pg.graph.edges)
+        self.assertIn((p[2], p[1], 0), pg.graph.edges)
+        self.assertIn((p[3], p[1], 0), pg.graph.edges)
+        self.assertIn((p[3], p[2], 1), pg.graph.edges)
+        self.assertIn((p[3], p[0], 0), pg.graph.edges)
+        self.assertIn((p[3], p[3], 1), pg.graph.edges)
+        self.assertIn((p[3], p[3], 0), pg.graph.edges)
+        self.assertEqual(pg.graph.edges[(p[0], p[2], 1)]["frequency"], 10)
+        self.assertEqual(pg.graph.edges[(p[0], p[1], 0)]["frequency"], 19)
+        self.assertEqual(pg.graph.edges[(p[0], p[3], 1)]["frequency"], 3)
+        self.assertEqual(pg.graph.edges[(p[1], p[1], 0)]["frequency"], 15)
+        self.assertEqual(pg.graph.edges[(p[1], p[1], 1)]["frequency"], 12)
+        self.assertEqual(pg.graph.edges[(p[1], p[0], 1)]["frequency"], 17)
+        self.assertEqual(pg.graph.edges[(p[1], p[3], 1)]["frequency"], 4)
+        self.assertEqual(pg.graph.edges[(p[1], p[2], 1)]["frequency"], 2)
+        self.assertEqual(pg.graph.edges[(p[2], p[2], 1)]["frequency"], 13)
+        self.assertEqual(pg.graph.edges[(p[2], p[2], 0)]["frequency"], 15)
+        self.assertEqual(pg.graph.edges[(p[2], p[3], 0)]["frequency"], 7)
+        self.assertEqual(pg.graph.edges[(p[2], p[0], 0)]["frequency"], 8)
+        self.assertEqual(pg.graph.edges[(p[2], p[1], 0)]["frequency"], 1)
+        self.assertEqual(pg.graph.edges[(p[3], p[1], 0)]["frequency"], 5)
+        self.assertEqual(pg.graph.edges[(p[3], p[2], 1)]["frequency"], 5)
+        self.assertEqual(pg.graph.edges[(p[3], p[0], 0)]["frequency"], 4)
+        self.assertEqual(pg.graph.edges[(p[3], p[3], 1)]["frequency"], 4)
+        self.assertEqual(pg.graph.edges[(p[3], p[3], 0)]["frequency"], 5)
 
         # We forgot to add `normalize()` at the end of `from_nodes_and_trajectories()`
         # self.assertAlmostEqual(pg.edges[(p[0], p[2], 1)]['probability'], 0.06711, delta=0.001)
@@ -193,8 +195,8 @@ class TestLoadGraphFromFile(unittest.TestCase):
         pg = PolicyGraph.from_pickle(self.pg_pickle)
 
         self.assertEqual(pg._is_fit, True)
-        self.assertEqual(len(pg.ipg.nodes), 4)
-        self.assertEqual(len(pg.ipg.edges), 18)
+        self.assertEqual(len(pg.graph.nodes), 4)
+        self.assertEqual(len(pg.graph.edges), 18)
         self.assertEqual(len(pg._trajectories_of_last_fit), 0)
 
         p = (
@@ -220,33 +222,35 @@ class TestLoadGraphFromFile(unittest.TestCase):
             ),
         )
 
-        self.assertIn(p[0], pg.ipg.nodes)
-        self.assertIn(p[1], pg.ipg.nodes)
-        self.assertIn(p[2], pg.ipg.nodes)
-        self.assertIn(p[3], pg.ipg.nodes)
-
-        self.assertAlmostEqual(pg.ipg.nodes[p[2]]["probability"], 0.51863, delta=0.001)
-        self.assertEqual(pg.ipg.nodes[p[2]]["frequency"], 2464)
-
-        self.assertIn((p[1], p[2], 1), pg.ipg.edges)
-        self.assertIn((p[2], p[1], 0), pg.ipg.edges)
-        self.assertIn((p[3], p[3], 1), pg.ipg.edges)
-        self.assertIn((p[2], p[1], 0), pg.ipg.edges)
-        self.assertIn((p[2], p[3], 0), pg.ipg.edges)
-        self.assertIn((p[1], p[0], 1), pg.ipg.edges)
+        self.assertIn(p[0], pg.graph.nodes)
+        self.assertIn(p[1], pg.graph.nodes)
+        self.assertIn(p[2], pg.graph.nodes)
+        self.assertIn(p[3], pg.graph.nodes)
 
         self.assertAlmostEqual(
-            pg.ipg.edges[(p[1], p[3], 1)]["probability"], 0.06126, delta=0.001
+            pg.graph.nodes[p[2]]["probability"], 0.51863, delta=0.001
         )
-        self.assertEqual(pg.ipg.edges[(p[1], p[3], 1)]["frequency"], 74)
-        self.assertEqual(pg.ipg.edges[(p[1], p[3], 1)]["action"], 1)
+        self.assertEqual(pg.graph.nodes[p[2]]["frequency"], 2464)
+
+        self.assertIn((p[1], p[2], 1), pg.graph.edges)
+        self.assertIn((p[2], p[1], 0), pg.graph.edges)
+        self.assertIn((p[3], p[3], 1), pg.graph.edges)
+        self.assertIn((p[2], p[1], 0), pg.graph.edges)
+        self.assertIn((p[2], p[3], 0), pg.graph.edges)
+        self.assertIn((p[1], p[0], 1), pg.graph.edges)
+
+        self.assertAlmostEqual(
+            pg.graph.edges[(p[1], p[3], 1)]["probability"], 0.06126, delta=0.001
+        )
+        self.assertEqual(pg.graph.edges[(p[1], p[3], 1)]["frequency"], 74)
+        self.assertEqual(pg.graph.edges[(p[1], p[3], 1)]["action"], 1)
         self.assertAlmostEqual(
             pg.edges[(p[1], p[1], 1)]["probability"], 0.26738, delta=0.001
         )
-        self.assertEqual(pg.ipg.edges[(p[1], p[1], 1)]["frequency"], 323)
-        self.assertEqual(pg.ipg.edges[(p[1], p[1], 1)]["action"], 1)
+        self.assertEqual(pg.graph.edges[(p[1], p[1], 1)]["frequency"], 323)
+        self.assertEqual(pg.graph.edges[(p[1], p[1], 1)]["action"], 1)
         self.assertAlmostEqual(
-            pg.ipg.edges[(p[3], p[0], 0)]["probability"], 0.21829, delta=0.001
+            pg.graph.edges[(p[3], p[0], 0)]["probability"], 0.21829, delta=0.001
         )
-        self.assertEqual(pg.ipg.edges[(p[3], p[0], 0)]["frequency"], 74)
-        self.assertEqual(pg.ipg.edges[(p[3], p[0], 0)]["action"], 0)
+        self.assertEqual(pg.graph.edges[(p[3], p[0], 0)]["frequency"], 74)
+        self.assertEqual(pg.graph.edges[(p[3], p[0], 0)]["action"], 0)

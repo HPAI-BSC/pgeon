@@ -102,7 +102,7 @@ class TestIntentionalXAI(unittest.TestCase):
             TestingAgent(),
         )
         self.ipg.graph = (
-            self.representation.graph.nx_graph
+            self.representation.graph._nx_graph
         )  # TODO: Temporary line, to remove once the PG class works
 
         self.ipg_xai = IPG_XAI_analyser(self.ipg, c_threshold=0.1)
