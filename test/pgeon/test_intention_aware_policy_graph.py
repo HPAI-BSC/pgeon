@@ -154,7 +154,7 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
             TestingAgent(),
         )
         self.ipg.graph = (
-            self.representation.graph.nx_graph
+            self.representation.graph._nx_graph
         )  # TODO: Temporary line, to remove once the PG class works
 
     def test_initialization(self):
