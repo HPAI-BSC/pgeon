@@ -7,7 +7,11 @@ from .policy_graph import (
     PGBasedPolicyNodeNotFoundMode,
     PolicyGraph,
 )
-from .policy_representation import GraphRepresentation, PolicyRepresentation
+from .policy_representation import (
+    GraphRepresentation,
+    IntentionalPolicyGraphRepresentation,
+    PolicyRepresentation,
+)
 
 __all__ = [
     "Agent",
@@ -17,6 +21,7 @@ __all__ = [
     "IPG",
     "PolicyRepresentation",
     "GraphRepresentation",
+    "IntentionalPolicyGraphRepresentation",
     "PGBasedPolicy",
     "PGBasedPolicyMode",
     "PGBasedPolicyNodeNotFoundMode",

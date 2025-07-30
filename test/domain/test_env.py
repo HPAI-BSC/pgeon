@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import Any, SupportsFloat, Tuple
+from typing import Any, List, SupportsFloat, Tuple
 
 import gymnasium
 import numpy as np
@@ -64,7 +64,7 @@ class TestingDiscretizer(Discretizer):
     def all_actions(self):
         return [0]
 
-    def get_predicate_space(self): ...
+    def get_predicate_space(self) -> List[Tuple[Predicate, ...]]: ...
 
     def nearest_state(self, state):
         while True:
