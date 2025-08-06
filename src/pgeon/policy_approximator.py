@@ -596,19 +596,15 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         """
         Save the policy approximator
 
-        :param format: The format to save in (e.g., 'json', 'pickle')
+        :param format: The format to save in (e.g., 'csv')
         :param path: The path to save to
         """
         if not self._is_fit:
             raise Exception("Policy approximator cannot be saved before fitting!")
 
         # Implement appropriate save functionality based on the format
-        if format == "json":
-            # Implement JSON serialization
-            pass
-        elif format == "pickle":
-            # Implement pickle serialization
-            pass
+        if format == "csv":
+            raise NotImplementedError("CSV format has not been implemented yet")
         else:
             raise NotImplementedError(f"Format {format} not supported for saving")
 
