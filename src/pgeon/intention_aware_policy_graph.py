@@ -10,7 +10,10 @@ from tqdm import tqdm
 from pgeon.agent import Agent
 from pgeon.desire import Desire
 from pgeon.discretizer import Discretizer, Predicate, PredicateBasedStateRepresentation
-from pgeon.policy_graph import PolicyGraph, PolicyRepresentation
+from pgeon.policy_approximator import (
+    PolicyApproximatorFromBasicObservation,
+)
+from pgeon.policy_representation import PolicyRepresentation
 
 ActionID = str
 StateID = PredicateBasedStateRepresentation
@@ -226,7 +229,7 @@ class AbstractIPG(abc.ABC):
         pass
 
 
-class IPG(PolicyGraph, AbstractIPG):
+class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
     def __init__(
         self,
         discretizer: Discretizer,

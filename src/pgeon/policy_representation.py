@@ -174,6 +174,11 @@ class PolicyRepresentation(abc.ABC):
         """Get a mapping of actions to possible next states from a given state."""
         ...
 
+    @abc.abstractmethod
+    def add_trajectory(self, trajectory: list[Any]) -> None:
+        """Add a trajectory to the policy representation."""
+        ...
+
 
 class GraphRepresentation(PolicyRepresentation):
     """
@@ -477,6 +482,31 @@ class GraphRepresentation(PolicyRepresentation):
                     result[action] = []
                 result[action].append(to_state)
         return result
+
+    def add_trajectory(self, trajectory: list[Any]) -> None:
+        """Add a trajectory to the policy representation."""
+        # Only even numbers are states
+        states_in_trajectory = [
+            trajectory[i] for i in range(len(trajectory)) if i % 2 == 0
+        ]
+        all_new_states_in_trajectory = {
+            state for state in set(states_in_trajectory) if not self.has_state(state)
+        }
+        self.add_states_from(all_new_states_in_trajectory, frequency=0)
+
+        state_frequencies = {
+            s: states_in_trajectory.count(s) for s in set(states_in_trajectory)
+        }
+        for state in state_frequencies:
+            self.get_node(state)["frequency"] += state_frequencies[state]
+
+        pointer = 0
+        while (pointer + 1) < len(trajectory):
+            state_from, action, state_to = trajectory[pointer : pointer + 3]
+            if not self.has_transition(state_from, state_to, action):
+                self.add_transition(state_from, state_to, action, frequency=0)
+            self.get_transition_data(state_from, state_to, action)["frequency"] += 1
+            pointer += 2
 
     # Legacy methods for backward compatibility
     def has_node(self, node: StateRepresentation) -> bool:

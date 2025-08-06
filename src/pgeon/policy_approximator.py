@@ -1,7 +1,10 @@
 import abc
+import csv
+import pickle
 import random
 from collections import defaultdict
 from enum import Enum, auto
+from pathlib import Path
 from typing import (
     Any,
     Dict,
@@ -18,14 +21,13 @@ from gymnasium import Env
 
 from pgeon.agent import Agent
 from pgeon.discretizer import Action, Discretizer, StateRepresentation
-from pgeon.policy_representation import PolicyRepresentation
+from pgeon.policy_representation import GraphRepresentation, PolicyRepresentation
 
 
 class Desire: ...
 
 
 class PolicyApproximator(abc.ABC):
-
     def __init__(
         self, discretizer: Discretizer, policy_representation: PolicyRepresentation
     ):
@@ -34,10 +36,41 @@ class PolicyApproximator(abc.ABC):
         self._is_fit = False
         self._trajectories_of_last_fit: List[List[Any]] = []
 
-    @abc.abstractmethod
+    @staticmethod
+    def from_pickle(path: str):
+        path_includes_pickle = path[-7:] == ".pickle"
+        with open(f"{path}{'' if path_includes_pickle else '.pickle'}", "rb") as f:
+            return pickle.load(f)
+
     def save(self, format: str, path: Union[str, List[str]]):
-        """Save the policy approximator"""
-        ...
+        if not self._is_fit:
+            raise Exception("Policy Approximator cannot be saved before fitting!")
+
+        if format not in ["pickle", "csv", "gram"]:
+            raise NotImplementedError("format must be one of pickle, csv or gram")
+
+        if format == "csv":
+            assert (
+                len(path) == 3
+            ), "When saving in CSV format, path must be a list of 3 elements (nodes, edges, trajectories)!"
+            self._save_csv(*path)
+        elif format == "gram":
+            assert isinstance(
+                path, str
+            ), "When saving in gram format, path must be a string!"
+            self._save_gram(path)
+        elif format == "pickle":
+            assert isinstance(
+                path, str
+            ), "When saving in pickle format, path must be a string!"
+            self._save_pickle(path)
+        else:
+            raise NotImplementedError
+
+    def _save_pickle(self, path: str):
+        path_includes_pickle = path[-7:] == ".pickle"
+        with open(f"{path}{'' if path_includes_pickle else '.pickle'}", "wb") as f:
+            pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
 
     @abc.abstractmethod
     def fit(self): ...
@@ -48,7 +81,111 @@ class OnlinePolicyApproximator(PolicyApproximator): ...
 
 
 # From trajectories
-class OfflinePolicyApproximator(PolicyApproximator): ...
+class OfflinePolicyApproximator(PolicyApproximator):
+    @staticmethod
+    def from_nodes_and_edges(
+        path_nodes: str,
+        path_edges: str,
+        discretizer: Discretizer,
+    ):
+        policy_representation = GraphRepresentation.load_csv(
+            "networkx", discretizer, Path(path_nodes), Path(path_edges)
+        )
+        approximator = OfflinePolicyApproximator(discretizer, policy_representation)
+        approximator._is_fit = True
+        return approximator
+
+    @staticmethod
+    def from_nodes_and_trajectories(
+        path_nodes: str,
+        path_trajectories: str,
+        discretizer: Discretizer,
+    ):
+        approximator = OfflinePolicyApproximator(discretizer, GraphRepresentation())
+
+        path_to_nodes_includes_csv = Path(path_nodes).suffix == ".csv"
+        path_to_trajs_includes_csv = Path(path_trajectories).suffix == ".csv"
+
+        node_info = {}
+        with open(
+            f"{path_nodes}{'' if path_to_nodes_includes_csv else '.csv'}", "r+"
+        ) as f:
+            csv_r = csv.reader(f)
+            next(csv_r)
+
+            for state_id, value, prob, freq in csv_r:
+                state_prob = float(prob)
+                state_freq = int(freq)
+
+                node_info[int(state_id)] = {
+                    "value": discretizer.str_to_state(value),
+                    "probability": state_prob,
+                    "frequency": state_freq,
+                }
+
+        with open(
+            f"{path_trajectories}{'' if path_to_trajs_includes_csv else '.csv'}",
+            "r+",
+        ) as f:
+            csv_r = csv.reader(f)
+
+            for csv_trajectory in csv_r:
+                trajectory = []
+                for elem_position, element in enumerate(csv_trajectory):
+                    # Process state
+                    if elem_position % 2 == 0:
+                        trajectory.append(node_info[int(element)]["value"])
+                    # Process action
+                    else:
+                        trajectory.append(int(element))
+
+                approximator.policy_representation.add_trajectory(trajectory)
+                approximator._trajectories_of_last_fit.append(trajectory)
+
+        approximator._normalize()
+        approximator._is_fit = True
+        return approximator
+
+    def fit(self):
+        # Offline approximator is already fitted by definition
+        pass
+
+    def _normalize(self) -> None:
+        weights = self.policy_representation.get_state_attributes("frequency")
+        total_frequency = sum([weights[state] for state in weights])
+        self.policy_representation.set_state_attributes(
+            {state: weights[state] / total_frequency for state in weights},
+            "probability",
+        )
+
+        for state in self.policy_representation.get_all_states():
+            transitions = self.policy_representation.get_outgoing_transitions(
+                state, include_data=True
+            )
+            total_frequency = 0
+
+            for transition in transitions:
+                if len(transition) >= 3:  # Check if we have data
+                    _, _, data = transition
+                    if isinstance(data, dict) and "frequency" in data:
+                        total_frequency += data["frequency"]
+
+            if total_frequency > 0:
+                for transition in transitions:
+                    if len(transition) >= 3:  # Check if we have data
+                        _, dest_state, data = transition
+                        if isinstance(data, dict) and "frequency" in data:
+                            action_val = data.get("action")
+                            if action_val is not None:
+                                edge_data = (
+                                    self.policy_representation.get_transition_data(
+                                        state, dest_state, action_val
+                                    )
+                                )
+                                if edge_data:
+                                    edge_data["probability"] = (
+                                        edge_data["frequency"] / total_frequency
+                                    )
 
 
 class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
@@ -213,7 +350,6 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         """Returns the nearest predicate on the representation. If already exists, then we return the same predicate. If not,
         then tries to change the predicate to find a similar state (Maximum change: 1 value).
         If we don't find a similar state, then we return None
-
         :param input_predicate: Existent or non-existent predicate in the representation
         :return: Nearest predicate
         :param verbose: Prints additional information
@@ -239,13 +375,10 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         self, predicate: Union[StateRepresentation, Tuple[Enum, ...]]
     ) -> List[Tuple[Any, float]]:
         """Given a predicate, get the possible actions and it's probabilities
-
         3 cases:
-
         - Predicate not in representation but similar predicate found: Return actions of the similar predicate
         - Predicate not in representation and no similar predicate found: Return all actions same probability
         - Predicate in MDP: Return actions of the predicate in representation
-
         :param predicate: Existing or not existing predicate
         :return: Action probabilities of a given state
         """
@@ -312,7 +445,6 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
     ) -> List[Tuple[Any, float]]:
         """
         Answers the question: What actions would you take in state X?
-
         :param predicate: The state to query
         :param verbose: Whether to print verbose output
         :return: List of (action, probability) tuples
@@ -331,7 +463,6 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         self, action: Action
     ) -> Tuple[List[StateRepresentation], List[StateRepresentation]]:
         """When do you perform action
-
         :param action: Valid action
         :return: A tuple of (all_states_with_action, states_where_action_is_best)
         """
@@ -391,7 +522,6 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
     ) -> List[StateRepresentation]:
         """
         Answers the question: When do you perform action X?
-
         :param action: The action to query
         :param verbose: Whether to print verbose output
         :return: List of states where the action is the most probable
@@ -417,7 +547,6 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
     ) -> Dict[str, Tuple[str, str]]:
         """
         Subtracts 2 predicates, getting only the values that are different
-
         :param origin: Origin predicate
         :param destination: Destination predicate
         :return: Dict with the different values
@@ -461,7 +590,6 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
     ) -> List[Tuple[Action, StateRepresentation, Dict[str, Tuple[str, str]]]]:
         """
         Gets nearby states from state
-
         :param state: State to analyze
         :param greedy: Whether to use greedy action selection
         :param verbose: Whether to print verbose output
@@ -498,7 +626,6 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
     ) -> Optional[Action]:
         """
         Get most probable action for a predicate
-
         :param predicate: The state to query
         :param greedy: Whether to use greedy action selection
         :param verbose: Whether to print verbose output
@@ -534,7 +661,6 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
     ) -> List[Dict[str, Tuple[str, str]]]:
         """
         Answers the question: Why do you perform action X in state Y?
-
         :param predicate: The state to query
         :param action: The action to query
         :param greedy: Whether to use greedy action selection
@@ -591,26 +717,6 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         if len(explanations) == 0 and verbose:
             print("\tI don't know where I would have ended up")
         return explanations
-
-    def save(self, format: str, path: Union[str, List[str]]):
-        """
-        Save the policy approximator
-
-        :param format: The format to save in (e.g., 'json', 'pickle')
-        :param path: The path to save to
-        """
-        if not self._is_fit:
-            raise Exception("Policy approximator cannot be saved before fitting!")
-
-        # Implement appropriate save functionality based on the format
-        if format == "json":
-            # Implement JSON serialization
-            pass
-        elif format == "pickle":
-            # Implement pickle serialization
-            pass
-        else:
-            raise NotImplementedError(f"Format {format} not supported for saving")
 
 
 class InterventionalPGConstruction(PolicyApproximator):
