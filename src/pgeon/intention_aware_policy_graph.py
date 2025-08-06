@@ -1,7 +1,7 @@
 import abc
 import warnings
 from dataclasses import asdict, dataclass
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Dict, Iterable, List, Optional, Set
 
 import gymnasium as gym
 import numpy as np
@@ -66,7 +66,7 @@ class ProbQuery:
         ), "given_do_a requires setting s_prima"
 
 
-class AbstractIPG(abc.ABC):
+class AbstractIntentionAwarePolicyGraph(abc.ABC):
     def __init__(self):
         self.registered_desires: List[Desire] = list()
 
@@ -231,7 +231,9 @@ class AbstractIPG(abc.ABC):
         pass
 
 
-class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
+class IntentionAwarePolicyGraph(
+    PolicyApproximatorFromBasicObservation, AbstractIntentionAwarePolicyGraph
+):
     def __init__(
         self,
         discretizer: Discretizer,
@@ -370,6 +372,7 @@ class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
                     )
 
     def register_desire(self, desire: Desire, stop_criterion=1e-4):
+        self.registered_desires.append(desire)
         for node in self.policy_representation.get_all_states():
             if "intention" not in self.policy_representation.graph.get_node(node):
                 self.policy_representation.graph.get_node(node)["intention"] = {}
@@ -421,21 +424,17 @@ class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
     def get_all_state_ids(self) -> Iterable[StateID]:
         return self.policy_representation.graph.nodes()
 
-    def check_desire(self, node: Tuple[Predicate], desire: Desire) -> Optional[float]:
-        # If it is a node where desire can be fulfilled, returns the immediate probability of fulfilling it
-        # Else returns None
-        if desire.type == "achievement":
-            # TODO: Convert desire clauses into predicates and do it fancy
+    def check_desire(
+        self, node: PredicateBasedStateRepresentation, desire: Desire
+    ) -> float:
+        if isinstance(node, PredicateBasedStateRepresentation):
             predicates_in_state = set(node.predicates)
-            fulfillable_desire = desire.clause.issubset(predicates_in_state)
-            if fulfillable_desire:
-                return self.prob(
-                    ProbQuery(a=desire.action_idx, given_s=node)
-                )  # TODO:Typing error to be verified and checked
-            else:
-                return None
         else:
-            raise NotImplementedError
+            predicates_in_state = set(node)
+
+        if desire.clause.issubset(predicates_in_state):
+            return 1.0
+        return 0.0
 
     def get_intention(self, s: StateID, desire: Desire):
         try:

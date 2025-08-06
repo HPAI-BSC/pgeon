@@ -1,11 +1,17 @@
-import abc
+from abc import ABC, abstractmethod
+from typing import Any
+
+from gymnasium import Space
 
 
-class Agent(metaclass=abc.ABCMeta):
-    @classmethod
-    def __subclasshook__(cls, subclass):
-        return hasattr(subclass, "act") and callable(subclass.act)
+class Agent(ABC):
+    @abstractmethod
+    def act(self, observation: Any) -> Any: ...
 
-    @abc.abstractmethod
-    def act(self, state):
-        pass
+
+class RandomAgent(Agent):
+    def __init__(self, action_space: Space):
+        self.action_space = action_space
+
+    def act(self, observation: Any) -> Any:
+        return self.action_space.sample()

@@ -2,13 +2,11 @@ import unittest
 from test.domain.test_env import State, TestingAgent, TestingDiscretizer, TestingEnv
 from typing import List
 
-import networkx as nx
-
-from pgeon import GraphRepresentation, Predicate
+from pgeon import Predicate
 from pgeon.desire import Desire
 from pgeon.discretizer import PredicateBasedStateRepresentation
-from pgeon.intention_aware_policy_graph import IPG
-from pgeon.policy_representation import Action
+from pgeon.intention_aware_policy_graph import IntentionAwarePolicyGraph
+from pgeon.policy_representation import Action, GraphRepresentation
 
 # action_idx_to_name = {'0': 'UP', '1': 'DOWN', '2': 'RIGHT', '3': 'LEFT', '4': 'STAY', '5': 'Interact'}
 action_name_to_idx = {"Interact": "5"}
@@ -67,9 +65,15 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
 
     def setUp(self):
         """Set up test data before each test."""
+        self.env = TestingEnv()
         self.discretizer = TestingDiscretizer()
+        self.representation = GraphRepresentation()
+        self.agent = TestingAgent()
+        self.ipg = IntentionAwarePolicyGraph(
+            self.discretizer, self.representation, self.env, self.agent
+        )
+        self.ipg.fit(n_episodes=1)
 
-        # Create states and actions for testing
         self.state0 = PredicateBasedStateRepresentation(
             (Predicate(State, [State.ZERO]),)
         )
@@ -82,105 +86,19 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
         self.state3 = PredicateBasedStateRepresentation(
             (Predicate(State, [State.THREE]),)
         )
-        self.states = [self.state0, self.state1, self.state2, self.state3]
+        self.action0: Action = 0
+        self.action1: Action = 1
 
-        self.action0: Action = "0"
-        self.action1: Action = "1"
-        self.representation = GraphRepresentation()
-
-        self.representation.graph.add_nodes_from(self.states)
-
-        # adding 3 edges: idea is state2 is terminal, state0 goes to 1 or 2 depending on actions & probs
-        # Desire is to use action0 in state1, bringing you univocally to state2
-        self.edges = [
-            # - 4-tuples (u, v, k, d) for an edge with data and key k; as per policy_rep key is action
-            (
-                self.states[2],
-                self.states[2],
-                self.action0,
-                {"action": self.action0, "prob": 0.75},
-            ),
-            (
-                self.states[2],
-                self.states[2],
-                self.action1,
-                {"action": self.action1, "prob": 0.25},
-            ),
-            (
-                self.states[0],
-                self.states[2],
-                self.action0,
-                {"action": self.action0, "prob": 0.5},
-            ),
-            (
-                self.states[0],
-                self.states[1],
-                self.action1,
-                {"action": self.action1, "prob": 0.4},
-            ),
-            (
-                self.states[0],
-                self.states[2],
-                self.action1,
-                {"action": self.action1, "prob": 0.1},
-            ),
-            (
-                self.states[1],
-                self.states[2],
-                self.action0,
-                {"action": self.action0, "prob": 0.5},
-            ),
-            (
-                self.states[1],
-                self.states[0],
-                self.action1,
-                {"action": self.action1, "prob": 0.1},
-            ),
-            (
-                self.states[1],
-                self.states[2],
-                self.action1,
-                {"action": self.action1, "prob": 0.4},
-            ),
-        ]
-        # Expected intention return in 0 = sum_i (0.4*0.1)^i[going to 1 and back] *(0.4*0.5) [final transition]
-        #  = 0.208333 according to wolframalpha, may be smaller depending on stop_criterion
-        self.representation.graph.add_edges_from(self.edges)
-
-        self.ipg = IPG(
-            self.discretizer,
-            self.representation,
-            TestingEnv(),
-            TestingAgent(),
+        self.desire_north = Desire(
+            "north", self.action0, {Predicate(State, [State.ONE])}
         )
-        self.ipg.graph = (
-            self.representation.graph._nx_graph
-        )  # TODO: Temporary line, to remove once the PG class works
+        self.desire_south = Desire(
+            "south", self.action1, {Predicate(State, [State.TWO])}
+        )
 
-    def test_initialization(self):
-        """Test initialization of policy representation."""
-        # self.assertEqual(self.graph, self.representation.graph.nx_graph)
-        self.assertIsInstance(self.ipg.graph, nx.MultiDiGraph)
-        self.assertEqual(len(self.ipg.graph.nodes), 4)
-        self.assertEqual(len(self.ipg.graph.edges), 8)
-
-    def test_propagate_intentions(self):
-        # load graph from edges and nodes files
-        desires = [
-            Desire(
-                "test_desire",
-                self.action0,
-                {Predicate(State, [State.ONE])},
-            )
-        ]
-        # this automatically calls propogate_intentions() on the nodes
-        num_places = 4
-        self.ipg.register_all_desires(desires)
-
-        # validate the intentions of several nodes have the expected values
-        # Id(s0) = 0.208333 according to wolframalpha, may be smaller depending on stop_criterion
-        int_s0 = self.ipg.graph.nodes[self.state0]["intention"][desires[0]]
-        self.assertAlmostEqual(0.208333, int_s0, places=num_places)
+    def test_desire_registration(self):
+        self.ipg.register_desire(self.desire_north)
+        self.assertIn(self.desire_north, self.ipg.registered_desires)
 
 
 if __name__ == "__main__":

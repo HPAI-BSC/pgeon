@@ -108,7 +108,7 @@ class PolicyApproximator(abc.ABC):
                                     )
                                 )
                                 if edge_data:
-                                    edge_data["probability"] = (
+                                    edge_data["prob"] = (
                                         edge_data["frequency"] / total_frequency
                                     )
 
@@ -263,43 +263,6 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
             if edge_data:
                 edge_data["frequency"] += 1
             pointer += 2
-
-    def _normalize(self) -> None:
-        weights = self.policy_representation.get_state_attributes("frequency")
-        total_frequency = sum([weights[state] for state in weights])
-        self.policy_representation.set_state_attributes(
-            {state: weights[state] / total_frequency for state in weights},
-            "probability",
-        )
-
-        for state in self.policy_representation.get_all_states():
-            transitions = self.policy_representation.get_outgoing_transitions(
-                state, include_data=True
-            )
-            total_frequency = 0
-
-            for transition in transitions:
-                if len(transition) >= 3:  # Check if we have data
-                    _, _, data = transition
-                    if isinstance(data, dict) and "frequency" in data:
-                        total_frequency += data["frequency"]
-
-            if total_frequency > 0:
-                for transition in transitions:
-                    if len(transition) >= 3:  # Check if we have data
-                        _, dest_state, data = transition
-                        if isinstance(data, dict) and "frequency" in data:
-                            action_val = data.get("action")
-                            if action_val is not None:
-                                edge_data = (
-                                    self.policy_representation.get_transition_data(
-                                        state, dest_state, action_val
-                                    )
-                                )
-                                if edge_data:
-                                    edge_data["probability"] = (
-                                        edge_data["frequency"] / total_frequency
-                                    )
 
     def fit(
         self,
@@ -489,12 +452,8 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
             for edge in edges:
                 if len(edge) >= 3:  # Check if we have data
                     u, _, data = edge
-                    if (
-                        isinstance(data, dict)
-                        and "action" in data
-                        and "probability" in data
-                    ):
-                        best_actions.append((u, data["action"], data["probability"]))
+                    if isinstance(data, dict) and "action" in data and "prob" in data:
+                        best_actions.append((u, data["action"], data["prob"]))
 
             if best_actions:
                 best_actions.sort(key=lambda x: x[2], reverse=True)

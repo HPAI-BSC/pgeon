@@ -1,12 +1,12 @@
 from typing import Dict, List, Tuple
 
-from pgeon.desire import Desire
-from pgeon.discretizer import PredicateBasedStateRepresentation
-from pgeon.intention_aware_policy_graph import IPG, ProbQuery
+from pgeon.desire import Desire, Goal
+from pgeon.discretizer import StateRepresentation
+from pgeon.intention_aware_policy_graph import IntentionAwarePolicyGraph, ProbQuery
 
 StateDiferences = Tuple[List[str], List[str]]
 Action = str
-State = PredicateBasedStateRepresentation
+State = StateRepresentation
 Intention = float
 HowTrace = List[
     Tuple[Action, State, Intention]
@@ -15,18 +15,20 @@ WhyTrace = Dict[str, float | str]
 
 
 class IPG_XAI_analyser:
-    def __init__(self, ipg: IPG, c_threshold: float):
-        self.ipg = ipg
-        self.c_threshold = c_threshold
+    """
+    This class is used to analyse the IPG and answer questions about the policy.
+    """
 
-    def answer_what(self, state: State, c_threshold: float) -> Dict[str, float]:
-        return {
-            dname: value
-            for dname, value in self.ipg.policy_representation.get_state_attributes(
+    def __init__(self, ipg: IntentionAwarePolicyGraph):
+        self.ipg = ipg
+
+    def answer_what(self, state: StateRepresentation) -> List[Tuple[Goal, float]]:
+        return [
+            (d, v)
+            for d, v in self.ipg.policy_representation.get_state_attributes(
                 "intention"
             )[state].items()
-            if value >= c_threshold
-        }
+        ]
 
     def answer_how(
         self,

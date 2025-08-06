@@ -3,6 +3,12 @@ from typing import Set
 from pgeon.discretizer import Predicate
 
 
+class Goal:
+    def __init__(self, name: str, clause: Set[Predicate]):
+        self.name = name
+        self.clause = clause
+
+
 class Desire(object):
     def __init__(self, name: str, action_idx: str, clause: Set[Predicate]):
         self.name = name

@@ -90,9 +90,9 @@ class TestPolicyApproximator(unittest.TestCase):
             from_state, to_state, data = transition
             if isinstance(data, dict) and "frequency" in data:
                 self.assertGreater(data["frequency"], 0)
-                self.assertIn("probability", data)
-                self.assertGreater(data["probability"], 0)
-                self.assertLessEqual(data["probability"], 1.0)
+                self.assertIn("prob", data)
+                self.assertGreater(data["prob"], 0)
+                self.assertLessEqual(data["prob"], 1.0)
 
     def test_get_possible_actions(self):
         self.approximator.fit(n_episodes=1)
