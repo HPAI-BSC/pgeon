@@ -28,7 +28,7 @@ A Policy Graph is a means to obtain a representation of the behavior of an opaqu
 or:
 
 1. Download the `pgeon/` folder and move it into the root directory of your project.
-2. Install **pgeon**'s requirements with `pip install -r PATH_TO_PGEON_REQUIREMENTS`.
+2. Install **pgeon**'s requirements with `uv pip install -e .`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for more details on how to install **pgeon** for development.
 
@@ -67,7 +67,7 @@ You can check [`examples/cartpole/demo.ipynb`](https://github.com/HPAI-BSC/pgeon
 To run the notebook yourself:
 
 1. Download the entire repository.
-2. Install **pgeon**'s requirements with `pip install -r requirements.txt`.
+2. Install **pgeon**'s requirements with `uv pip install -e .`
 3. Install an extra dependency, rllib, with `pip install "ray[rllib]"`.
 4. Open and execute `examples/cartpole/demo.ipynb`.
 

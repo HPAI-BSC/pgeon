@@ -39,6 +39,11 @@ classifiers = [
   "Programming Language :: Python"
 ]
 
+[project.optional-dependencies]
+dev = [
+  "pre-commit"
+]
+
 [project.urls]
 Homepage = "https://github.com/HPAI-BSC/pgeon"
 Repository = "https://github.com/HPAI-BSC/pgeon"

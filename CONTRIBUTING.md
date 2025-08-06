@@ -15,18 +15,17 @@ To get your development environment set up, please follow these steps:
     ```bash
     cd pgeon
     ```
-4.  **Create and activate a virtual environment**: We recommend using `venv`:
+4.  **Create and activate a virtual environment**: We recommend using `uv`:
     ```bash
-    python -m venv venv
-    source venv/bin/activate # On Windows use `venv\Scripts\activate`
+    uv venv
+    source .venv/bin/activate # On Windows use `.venv\Scripts\activate`
     ```
 5.  **Install requirements**:
     ```bash
-    pip install -r requirements.txt
+    uv pip install -e ".[dev]"
     ```
 6.  **Install pre-commit hooks**: This helps ensure code style and quality consistency.
     ```bash
-    pip install pre-commit
     pre-commit install
     ```
 
@@ -39,7 +38,7 @@ To get your development environment set up, please follow these steps:
 2.  **Make your changes**: Write your code and add tests if applicable.
 3.  **Run tests**: Ensure all tests pass.
     ```bash
-    python -m unittest discover -s ./tests -p 'test_*.py'
+    uv run python -m unittest discover -s ./test -p 'test_*.py'
     ```
 4.  **Commit your changes**: Use clear and descriptive commit messages. Pre-commit hooks will run automatically.
     ```bash
