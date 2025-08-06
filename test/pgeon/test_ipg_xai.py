@@ -112,7 +112,7 @@ class TestIntentionalXAI(unittest.TestCase):
             {Predicate(State, [State.ONE])},
         )
         num_places = 4
-        self.ipg.register_all_desires([self.desire0], stop_criterion=10 ^ -num_places)
+        self.ipg.register_all_desires([self.desire0])
 
     def test_how(self):
         trace = self.ipg_xai.answer_how(self.state0, [self.desire0])

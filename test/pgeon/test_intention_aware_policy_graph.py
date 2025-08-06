@@ -175,7 +175,7 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
         ]
         # this automatically calls propogate_intentions() on the nodes
         num_places = 4
-        self.ipg.register_all_desires(desires, stop_criterion=10 ^ -num_places)
+        self.ipg.register_all_desires(desires)
 
         # validate the intentions of several nodes have the expected values
         # Id(s0) = 0.208333 according to wolframalpha, may be smaller depending on stop_criterion

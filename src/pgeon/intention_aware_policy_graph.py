@@ -1,7 +1,7 @@
 import abc
 import warnings
 from dataclasses import asdict, dataclass
-from typing import Dict, Iterable, List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 import gymnasium as gym
 import numpy as np
@@ -173,7 +173,9 @@ class AbstractIPG(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def check_desire(self, node, desire: Desire) -> float:
+    def check_desire(
+        self, node, desire_clause: Set[Predicate], action_id: int
+    ) -> float:
         pass
 
     @abc.abstractmethod
@@ -243,6 +245,145 @@ class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
             list()
         )  # TODO: temp fix since AbstractIPG init is not callable here
         self.verbose = verbose
+
+    def find_intentions(self, desires: Set[Desire], commitment_threshold: float):
+        self.register_all_desires(desires)
+        return self
+
+    def atom_in_state(self, node: Set[Predicate], atom: Predicate):
+        return atom in node
+
+    @staticmethod
+    def get_prob(unknown_dict: Optional[Dict[str, float]]) -> float:
+        if unknown_dict is None:
+            return 0
+        else:
+            return unknown_dict.get("probability", 0)
+
+    def get_action_probability(self, node: Set[Predicate], action_id: int):
+        try:
+            destinations = self.policy_representation.get_possible_next_states(node)
+            return sum(
+                [
+                    self.get_prob(
+                        self.policy_representation.get_transition_data(
+                            node, destination, action_id
+                        )
+                    )
+                    for destination in destinations
+                ]
+            )
+        except KeyError:
+            print(
+                f"Warning: State {node} has no sampled successors which were asked for"
+            )
+            return 0
+
+    def check_desire(
+        self,
+        node: Set[Predicate],
+        desire: Desire,
+    ):
+        # Returns None if desire is not satisfied. Else, returns probability of fulfilling desire
+        #   ie: executing the action when in Node
+        desire_clause_satisfied = True
+        for atom in desire.clause:
+            desire_clause_satisfied = desire_clause_satisfied and self.atom_in_state(
+                node, atom
+            )
+            if not desire_clause_satisfied:
+                return None
+        return self.get_action_probability(node, desire.action_idx)
+
+    def update_intention(
+        self,
+        node: Set[Predicate],
+        desire: Desire,
+        probability: float,
+    ):
+        if "intention" not in self.policy_representation.get_node(node):
+            self.policy_representation.get_node(node)["intention"] = {}
+        current_intention_val = self.policy_representation.get_node(node)[
+            "intention"
+        ].get(desire, 0)
+        self.policy_representation.get_node(node)["intention"][desire] = (
+            current_intention_val + probability
+        )
+
+    def propagate_intention(
+        self,
+        node: Set[Predicate],
+        desire: Desire,
+        probability,
+        stop_criterion=1e-4,
+    ):
+        self.update_intention(node, desire, probability)
+        for coincider in self.policy_representation.get_predecessors(node):
+            if (
+                self.check_desire(
+                    coincider,
+                    desire.clause,
+                    desire.action_idx or hash(desire.clause),
+                )
+                is None
+            ):
+                successors = self.policy_representation.get_successors(coincider)
+                coincider_transitions: List[Dict[Set[Predicate], float]] = [
+                    {
+                        successor: self.get_prob(
+                            self.policy_representation.get_transition_data(
+                                coincider, successor, action_id
+                            )
+                        )
+                        for successor in successors
+                    }
+                    for action_id in self.discretizer.all_actions()
+                ]
+            else:
+                successors = self.policy_representation.get_successors(coincider)
+                # If coincider can fulfill desire themselves, do not propagate it through the action_idx branch
+                coincider_transitions: List[Dict[Set[Predicate], float]] = [
+                    {
+                        successor: self.get_prob(
+                            self.policy_representation.get_transition_data(
+                                coincider, successor, action_id
+                            )
+                        )
+                        for successor in successors
+                    }
+                    for action_id in self.discretizer.all_actions()
+                    if action_id != desire.action_idx
+                ]
+
+            prob_of_transition = 0
+            for action_transitions in coincider_transitions:
+                prob_of_transition += action_transitions.get(node, 0)
+            # self.transitions = {n_idx: {action1:{dest_node1: P(dest1, action1|n_idx), ...}
+
+            new_coincider_intention_value = prob_of_transition * probability
+            if new_coincider_intention_value >= stop_criterion:
+                try:
+                    coincider.propagate_intention(desire, new_coincider_intention_value)
+                except RecursionError:
+                    print(
+                        "Maximum recursion reach, skipping branch with intention of",
+                        new_coincider_intention_value,
+                    )
+
+    def register_desire(self, desire: Desire, stop_criterion=1e-4):
+        for node in self.policy_representation.get_all_states():
+            if "intention" not in self.policy_representation.get_node(node):
+                self.policy_representation.get_node(node)["intention"] = {}
+            self.policy_representation.get_node(node)["intention"][desire] = 0
+
+        for node in self.policy_representation.get_all_states():
+            p = self.check_desire(node, desire)
+            if p is not None:
+                self.propagate_intention(node, desire, p, stop_criterion)
+
+    def register_all_desires(self, desires: Set[Desire]):
+        for desire in desires:
+            self.register_desire(desire)
 
     def get_possible_actions(self, s: StateID) -> List[ActionID]:
         # Returns any a s.t. P(a|s)>0

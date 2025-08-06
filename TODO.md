@@ -4,17 +4,17 @@ This document outlines the plan to refactor the `pgeon` codebase to improve modu
 
 ## 1. Project Setup
 
-- [ ] Transition to `uv` for dependency management.
-  - [ ] Update `pyproject.toml` for `uv` compatibility.
-  - [ ] Generate `uv.lock` file.
-- [ ] Ensure all existing tests pass before refactoring.
+- [x] Transition to `uv` for dependency management.
+  - [x] Update `pyproject.toml` for `uv` compatibility.
+  - [x] Generate `uv.lock` file.
+- [x] Ensure all existing tests pass before refactoring.
 
 ## 2. Code Refactoring and Consolidation
 
-- [ ] Deprecate `PolicyGraph` (`src/pgeon/policy_graph.py`).
-  - [ ] Merge functionality from `PolicyGraph` into `PolicyApproximatorFromBasicObservation`.
-  - [ ] Refactor `PolicyGraph` users to use `PolicyApproximatorFromBasicObservation`.
-  - [ ] Remove `src/pgeon/policy_graph.py`.
+- [x] Deprecate `PolicyGraph` (`src/pgeon/policy_graph.py`).
+  - [x] Merge functionality from `PolicyGraph` into `PolicyApproximatorFromBasicObservation`.
+  - [x] Refactor `PolicyGraph` users to use `PolicyApproximatorFromBasicObservation`.
+  - [x] Remove `src/pgeon/policy_graph.py`.
 - [ ] Deprecate `IntentionIntrospector` (`src/pgeon/intention_introspector.py`).
   - [ ] Move intention finding logic into `IntentionAwarePolicyGraph` or a new dedicated class that uses the new abstractions.
   - [ ] Remove `src/pgeon/intention_introspector.py`.
