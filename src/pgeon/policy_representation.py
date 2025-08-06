@@ -498,7 +498,7 @@ class GraphRepresentation(PolicyRepresentation):
             s: states_in_trajectory.count(s) for s in set(states_in_trajectory)
         }
         for state in state_frequencies:
-            self.get_node(state)["frequency"] += state_frequencies[state]
+            self.graph.get_node(state)["frequency"] += state_frequencies[state]
 
         pointer = 0
         while (pointer + 1) < len(trajectory):
@@ -507,65 +507,6 @@ class GraphRepresentation(PolicyRepresentation):
                 self.add_transition(state_from, state_to, action, frequency=0)
             self.get_transition_data(state_from, state_to, action)["frequency"] += 1
             pointer += 2
-
-    # Legacy methods for backward compatibility
-    def has_node(self, node: StateRepresentation) -> bool:
-        return self.has_state(node)
-
-    def add_node(self, node: StateRepresentation, **kwargs) -> None:
-        self.add_state(node, **kwargs)
-
-    def get_node(self, node: StateRepresentation) -> Dict[str, Any]:
-        return self.graph.get_node(node)
-
-    def add_nodes_from(self, nodes: Collection[StateRepresentation], **kwargs) -> None:
-        self.add_states_from(nodes, **kwargs)
-
-    def add_edge(
-        self, node_from: StateRepresentation, node_to: StateRepresentation, **kwargs
-    ) -> None:
-        action = kwargs.pop("action", None)
-        if action is not None:
-            self.add_transition(node_from, node_to, action, **kwargs)
-        else:
-            self.graph.add_edge(node_from, node_to, **kwargs)
-
-    def add_edges_from(
-        self,
-        edges: Collection[Tuple[StateRepresentation, StateRepresentation, Action]],
-        **kwargs,
-    ) -> None:
-        self.add_transitions_from(edges, **kwargs)
-
-    def get_edge_data(
-        self, node_from: StateRepresentation, node_to: StateRepresentation, key: Any
-    ) -> Dict:
-        return self.get_transition_data(node_from, node_to, key)
-
-    def has_edge(
-        self,
-        node_from: StateRepresentation,
-        node_to: StateRepresentation,
-        key: Any = None,
-    ) -> bool:
-        return self.has_transition(node_from, node_to, key)
-
-    def get_node_attributes(self, name: str) -> Dict[StateRepresentation, Any]:
-        return self.get_state_attributes(name)
-
-    def set_node_attributes(
-        self, attributes: Dict[StateRepresentation, Any], name: str
-    ) -> None:
-        self.set_state_attributes(attributes, name)
-
-    def nodes(self) -> Collection[StateRepresentation]:
-        return self.get_all_states()
-
-    def edges(self, data: bool = False):
-        return self.get_all_transitions(include_data=data)
-
-    def out_edges(self, node: StateRepresentation, data: bool = False):
-        return self.get_outgoing_transitions(node, include_data=data)
 
     def __getitem__(self, state: StateRepresentation) -> Any:
         """Get the transitions from a state, organized by destination state."""
@@ -649,21 +590,21 @@ class GraphRepresentation(PolicyRepresentation):
         with open(nodes_path, "w+") as f:
             csv_w = csv.writer(f)
             csv_w.writerow(["id", "value", "p(s)", "frequency"])
-            for elem_position, node in enumerate(self.nodes()):
+            for elem_position, node in enumerate(self.get_all_states()):
                 node_ids[node] = elem_position
                 csv_w.writerow(
                     [
                         elem_position,
                         discretizer.state_to_str(node),
-                        self.get_node(node).get("probability", 0),
-                        self.get_node(node).get("frequency", 0),
+                        self.graph.get_node(node).get("probability", 0),
+                        self.graph.get_node(node).get("frequency", 0),
                     ]
                 )
 
         with open(edges_path, "w+") as f:
             csv_w = csv.writer(f)
             csv_w.writerow(["from", "to", "action", "p(s)", "frequency"])
-            for edge in self.edges(data=True):
+            for edge in self.get_all_transitions(include_data=True):
                 state_from, state_to, action = edge
                 csv_w.writerow(
                     [
@@ -686,15 +627,18 @@ class GraphRepresentation(PolicyRepresentation):
             node: {
                 "id": i,
                 "value": discretizer.state_to_str(node),
-                "probability": self.get_node(node).get("probability", 0),
-                "frequency": self.get_node(node).get("frequency", 0),
+                "probability": self.graph.get_node(node).get("probability", 0),
+                "frequency": self.graph.get_node(node).get("frequency", 0),
             }
-            for i, node in enumerate(self.nodes())
+            for i, node in enumerate(self.get_all_states())
         }
         action_info = {
             action: {"id": i, "value": str(action)}
             for i, action in enumerate(
-                set(data.get("action") for _, _, data in self.edges(data=True))
+                set(
+                    data.get("action")
+                    for _, _, data in self.get_all_transitions(include_data=True)
+                )
             )
         }
 
@@ -718,7 +662,7 @@ class GraphRepresentation(PolicyRepresentation):
                 )
 
             # Write edges
-            for edge in self.edges(data=True):
+            for edge in self.get_all_transitions(include_data=True):
                 n_from, n_to, data = edge
                 action = data.get("action")
                 if action is not None:

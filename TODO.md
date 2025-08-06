@@ -15,9 +15,9 @@ This document outlines the plan to refactor the `pgeon` codebase to improve modu
   - [x] Merge functionality from `PolicyGraph` into `PolicyApproximatorFromBasicObservation`.
   - [x] Refactor `PolicyGraph` users to use `PolicyApproximatorFromBasicObservation`.
   - [x] Remove `src/pgeon/policy_graph.py`.
-- [ ] Deprecate `IntentionIntrospector` (`src/pgeon/intention_introspector.py`).
-  - [ ] Move intention finding logic into `IntentionAwarePolicyGraph` or a new dedicated class that uses the new abstractions.
-  - [ ] Remove `src/pgeon/intention_introspector.py`.
+- [x] Deprecate `IntentionIntrospector` (`src/pgeon/intention_introspector.py`).
+  - [x] Move intention finding logic into `IntentionAwarePolicyGraph` or a new dedicated class that uses the new abstractions.
+  - [x] Remove `src/pgeon/intention_introspector.py`.
 - [ ] Refactor `PolicyApproximator` and `PolicyRepresentation`.
   - [ ] Ensure `PolicyApproximatorFromBasicObservation` correctly and consistently uses a `PolicyRepresentation` instance.
   - [ ] Remove redundant methods between the old `PolicyGraph` and the new approximators.

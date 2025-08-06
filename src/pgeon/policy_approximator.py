@@ -75,6 +75,43 @@ class PolicyApproximator(abc.ABC):
     @abc.abstractmethod
     def fit(self): ...
 
+    def _normalize(self) -> None:
+        weights = self.policy_representation.get_state_attributes("frequency")
+        total_frequency = sum([weights[state] for state in weights])
+        self.policy_representation.set_state_attributes(
+            {state: weights[state] / total_frequency for state in weights},
+            "probability",
+        )
+
+        for state in self.policy_representation.get_all_states():
+            transitions = self.policy_representation.get_outgoing_transitions(
+                state, include_data=True
+            )
+            total_frequency = 0
+
+            for transition in transitions:
+                if len(transition) >= 3:  # Check if we have data
+                    _, _, data = transition
+                    if isinstance(data, dict) and "frequency" in data:
+                        total_frequency += data["frequency"]
+
+            if total_frequency > 0:
+                for transition in transitions:
+                    if len(transition) >= 3:  # Check if we have data
+                        _, dest_state, data = transition
+                        if isinstance(data, dict) and "frequency" in data:
+                            action_val = data.get("action")
+                            if action_val is not None:
+                                edge_data = (
+                                    self.policy_representation.get_transition_data(
+                                        state, dest_state, action_val
+                                    )
+                                )
+                                if edge_data:
+                                    edge_data["probability"] = (
+                                        edge_data["frequency"] / total_frequency
+                                    )
+
 
 # From agent and environment
 class OnlinePolicyApproximator(PolicyApproximator): ...
@@ -149,43 +186,6 @@ class OfflinePolicyApproximator(PolicyApproximator):
     def fit(self):
         # Offline approximator is already fitted by definition
         pass
-
-    def _normalize(self) -> None:
-        weights = self.policy_representation.get_state_attributes("frequency")
-        total_frequency = sum([weights[state] for state in weights])
-        self.policy_representation.set_state_attributes(
-            {state: weights[state] / total_frequency for state in weights},
-            "probability",
-        )
-
-        for state in self.policy_representation.get_all_states():
-            transitions = self.policy_representation.get_outgoing_transitions(
-                state, include_data=True
-            )
-            total_frequency = 0
-
-            for transition in transitions:
-                if len(transition) >= 3:  # Check if we have data
-                    _, _, data = transition
-                    if isinstance(data, dict) and "frequency" in data:
-                        total_frequency += data["frequency"]
-
-            if total_frequency > 0:
-                for transition in transitions:
-                    if len(transition) >= 3:  # Check if we have data
-                        _, dest_state, data = transition
-                        if isinstance(data, dict) and "frequency" in data:
-                            action_val = data.get("action")
-                            if action_val is not None:
-                                edge_data = (
-                                    self.policy_representation.get_transition_data(
-                                        state, dest_state, action_val
-                                    )
-                                )
-                                if edge_data:
-                                    edge_data["probability"] = (
-                                        edge_data["frequency"] / total_frequency
-                                    )
 
 
 class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):

@@ -56,12 +56,12 @@ class TestLoadGraphFromFile(unittest.TestCase):
         self.assertIn(p[3], pg.policy_representation.get_all_states())
 
         self.assertAlmostEqual(
-            pg.policy_representation.get_node_attributes("probability")[p[2]],
+            pg.policy_representation.get_state_attributes("probability")[p[2]],
             0.51863,
             delta=0.001,
         )
         self.assertEqual(
-            pg.policy_representation.get_node_attributes("frequency")[p[2]], 2464
+            pg.policy_representation.get_state_attributes("frequency")[p[2]], 2464
         )
 
         self.assertTrue(pg.policy_representation.has_transition(p[1], p[2], 1))
@@ -147,16 +147,16 @@ class TestLoadGraphFromFile(unittest.TestCase):
         self.assertIn(p[3], pg.policy_representation.get_all_states())
 
         self.assertEqual(
-            pg.policy_representation.get_node_attributes("frequency")[p[0]], 33
+            pg.policy_representation.get_state_attributes("frequency")[p[0]], 33
         )
         self.assertEqual(
-            pg.policy_representation.get_node_attributes("frequency")[p[1]], 52
+            pg.policy_representation.get_state_attributes("frequency")[p[1]], 52
         )
         self.assertEqual(
-            pg.policy_representation.get_node_attributes("frequency")[p[2]], 45
+            pg.policy_representation.get_state_attributes("frequency")[p[2]], 45
         )
         self.assertEqual(
-            pg.policy_representation.get_node_attributes("frequency")[p[3]], 23
+            pg.policy_representation.get_state_attributes("frequency")[p[3]], 23
         )
 
     @unittest.skip(
@@ -199,12 +199,12 @@ class TestLoadGraphFromFile(unittest.TestCase):
         self.assertIn(p[3], pg.policy_representation.get_all_states())
 
         self.assertAlmostEqual(
-            pg.policy_representation.get_node_attributes("probability")[p[2]],
+            pg.policy_representation.get_state_attributes("probability")[p[2]],
             0.51863,
             delta=0.001,
         )
         self.assertEqual(
-            pg.policy_representation.get_node_attributes("frequency")[p[2]], 2464
+            pg.policy_representation.get_state_attributes("frequency")[p[2]], 2464
         )
 
         self.assertTrue(pg.policy_representation.has_transition(p[1], p[2], 1))

@@ -322,8 +322,7 @@ class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
             if (
                 self.check_desire(
                     coincider,
-                    desire.clause,
-                    desire.action_idx or hash(desire.clause),
+                    desire,
                 )
                 is None
             ):
@@ -372,49 +371,39 @@ class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
 
     def register_desire(self, desire: Desire, stop_criterion=1e-4):
         for node in self.policy_representation.get_all_states():
-            if "intention" not in self.policy_representation.get_node(node):
-                self.policy_representation.get_node(node)["intention"] = {}
-            self.policy_representation.get_node(node)["intention"][desire] = 0
+            if "intention" not in self.policy_representation.graph.get_node(node):
+                self.policy_representation.graph.get_node(node)["intention"] = {}
+            self.policy_representation.graph.get_node(node)["intention"][desire] = 0
 
         for node in self.policy_representation.get_all_states():
             p = self.check_desire(node, desire)
             if p is not None:
                 self.propagate_intention(node, desire, p, stop_criterion)
 
-    def register_all_desires(self, desires: Set[Desire]):
-        for desire in desires:
-            self.register_desire(desire)
-
     def get_possible_actions(self, s: StateID) -> List[ActionID]:
         # Returns any a s.t. P(a|s)>0
         if type(s) == int:
             # TODO: Legacy: to be removed
-            node = self.graph.nodes[s]
+            s_node = self.stateID_to_node(s)
+            s_transitions = self.policy_representation.get_transitions_from_state(
+                s_node
+            )
+            return list(s_transitions.keys())
         else:
-            node = s
-        actions_with_probs = [
-            (data["action"], dest, data["prob"])
-            for orig, dest, data in self.graph.out_edges(node, data=True)
-        ]
-        # TODO: Check on this
-        actions_with_probs = list(
-            set(actions_with_probs)
-        )  # deduplicate, for some reason needed (?)
-        actions = list(
-            set([act for act, _, p in actions_with_probs if p > 0])
-        )  # Just in case there's 0-prob edges
-        return actions
+            return list(self.policy_representation.get_transitions_from_state(s).keys())
 
     def get_possible_s_prima(self, s: StateID, a: ActionID = None) -> List[StateID]:
         # Returns any a s.t. P(a|s)>0
         if type(s) == int:
             # TODO: Legacy: to be removed
-            node = self.graph.nodes[s]
+            node = self.stateID_to_node(s)
         else:
             node = s
         edges_with_probs = [
             (data["action"], dest, data["prob"])
-            for orig, dest, data in self.graph.out_edges(node, data=True)
+            for orig, dest, data in self.policy_representation.graph.out_edges(
+                node, data=True
+            )
         ]
         # TODO: Check on this
         edges_with_probs = list(
@@ -430,7 +419,7 @@ class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
         return destinies
 
     def get_all_state_ids(self) -> Iterable[StateID]:
-        return self.graph.nodes
+        return self.policy_representation.graph.nodes()
 
     def check_desire(self, node: Tuple[Predicate], desire: Desire) -> Optional[float]:
         # If it is a node where desire can be fulfilled, returns the immediate probability of fulfilling it
@@ -450,39 +439,41 @@ class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
 
     def get_intention(self, s: StateID, desire: Desire):
         try:
-            return self.graph.nodes[s]["intention"][desire]
+            return self.policy_representation.graph.nodes()[s]["intention"][desire]
         except KeyError:
             return 0
 
     def get_intentions(self, s: StateID) -> Dict[Desire, float]:
         try:
-            return self.graph.nodes[s]["intention"]
+            return self.policy_representation.graph.nodes()[s]["intention"]
         except KeyError:
             return dict()
 
     def _set_intention(self, s, desire, new_int):
         try:
-            self.graph.nodes[s]["intention"][desire] = new_int
+            self.policy_representation.graph.nodes()[s]["intention"][desire] = new_int
         except KeyError:
-            self.graph.nodes[s]["intention"] = dict()
-            self.graph.nodes[s]["intention"][desire] = new_int
+            self.policy_representation.graph.nodes()[s]["intention"] = dict()
+            self.policy_representation.graph.nodes()[s]["intention"][desire] = new_int
 
     def _prob_s(self, s: StateID):
-        return self.graph.nodes[s].probability
+        return self.policy_representation.graph.nodes()[s].probability
 
     def _prob_s_prima_a_given_s(self, s_prima: StateID, a: ActionID, given_s: StateID):
         # Assuming the 's' is always in predicates format for simplicity
         try:
             prob = [
                 data["prob"]
-                for orig, dest, data in self.graph.out_edges(given_s, data=True)
+                for orig, dest, data in self.policy_representation.graph.out_edges(
+                    given_s, data=True
+                )
                 if a == data["action"] and dest == s_prima
             ]
             if len(prob) > 1:
                 raise AssertionError(
                     f"More than one possible edge in query considering "
                     f"{s_prima},{a}|{given_s}:\n"
-                    f"{self.graph.out_edges(given_s, data=True)}"
+                    f"{self.policy_representation.graph.out_edges(given_s, data=True)}"
                 )
             if len(prob) == 0:
                 warnings.warn(
@@ -499,7 +490,9 @@ class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
         try:
             prob = [
                 data["prob"]
-                for orig, dest, data in self.graph.out_edges(given_s, data=True)
+                for orig, dest, data in self.policy_representation.graph.out_edges(
+                    given_s, data=True
+                )
                 if a == data["action"]
             ]
             if len(prob) == 0:
@@ -521,14 +514,16 @@ class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
         else:
             prob = [
                 data["prob"]
-                for orig, dest, data in self.graph.out_edges(given_s, data=True)
+                for orig, dest, data in self.policy_representation.graph.out_edges(
+                    given_s, data=True
+                )
                 if given_a == data["action"] and dest == s_prima
             ]
             if len(prob) > 1:
                 raise AssertionError(
                     f"More than one possible edge in query considering "
                     f"{s_prima}|{given_a},{given_s}:\n"
-                    f"{self.graph.out_edges(given_s, data=True)}"
+                    f"{self.policy_representation.graph.out_edges(given_s, data=True)}"
                 )
             elif len(prob) == 0:
                 return 0
@@ -543,13 +538,15 @@ class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
     def _prob_s_prima_given_s(self, s_prima: StateID, given_s: StateID):
         prob = [
             data["prob"]
-            for orig, dest, data in self.graph.out_edges(given_s, data=True)
+            for orig, dest, data in self.policy_representation.graph.out_edges(
+                given_s, data=True
+            )
             if dest == s_prima
         ]
         return sum(prob)
 
     def stateID_to_node(self, s: StateID) -> StateID:
-        return self.graph.nodes[s]
+        return self.policy_representation.graph.nodes()[s]
 
     def propagate_intention(
         self,
@@ -562,7 +559,12 @@ class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
         desire_name = desire.name
         self._update_intention(node, desire, propagated_intention)
 
-        parents = set([orig for orig, _ in self.graph.in_edges(node)])
+        parents = set(
+            [
+                orig
+                for orig, _ in self.policy_representation.graph.backend.in_edges(node)
+            ]
+        )
 
         for parent in parents:
             if self.check_desire(parent, desire) is None:
@@ -596,7 +598,7 @@ class IPG(PolicyApproximatorFromBasicObservation, AbstractIPG):
                     )
 
     def _update_intention(self, node, desire, intention):
-        graph_node = self.graph.nodes[node]
+        graph_node = self.policy_representation.graph.nodes()[node]
         current_intention_val = graph_node["intention"][desire]
         graph_node["intention"][desire] = current_intention_val + intention
 

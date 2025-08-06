@@ -299,34 +299,6 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertEqual(len(self.representation.get_all_states()), 0)
         self.assertEqual(len(self.representation.get_all_transitions()), 0)
 
-    def test_backward_compatibility(self):
-        """Test that the backward compatibility methods work correctly."""
-        self.setup_test_graph()
-
-        self.assertEqual(
-            len(self.representation.nodes()), len(self.representation.get_all_states())
-        )
-        self.assertEqual(
-            len(self.representation.edges()),
-            len(self.representation.get_all_transitions()),
-        )
-        self.assertEqual(
-            len(self.representation.out_edges(self.state0)),
-            len(self.representation.get_outgoing_transitions(self.state0)),
-        )
-
-        old_attrs = self.representation.get_node_attributes("frequency")
-        new_attrs = self.representation.get_state_attributes("frequency")
-        self.assertEqual(old_attrs, new_attrs)
-
-        old_data = self.representation.get_edge_data(
-            self.state0, self.state1, self.action0
-        )
-        new_data = self.representation.get_transition_data(
-            self.state0, self.state1, self.action0
-        )
-        self.assertEqual(old_data, new_data)
-
     def test_simulation_with_environment(self):
         """Test simulating a policy with the TestingEnv environment."""
         env = TestingEnv()
