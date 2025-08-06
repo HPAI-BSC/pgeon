@@ -59,6 +59,9 @@ class TestPolicyRepresentation(unittest.TestCase):
         state_attrs = self.representation.get_state_attributes("frequency")
         self.assertEqual(state_attrs[self.state0], 1)
 
+        state_attrs = self.representation.get_state_attributes("probability")
+        self.assertEqual(state_attrs[self.state0], 0.25)
+
         # Add multiple states
         self.representation.add_states_from(
             [self.state1, self.state2, self.state3], frequency=2, probability=0.25
@@ -124,10 +127,25 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertEqual(transition_data["frequency"], 3)
         self.assertEqual(transition_data["probability"], 0.75)
 
+        # Test updating an existing transition
+        self.representation.add_transition(
+            self.state0, self.state1, self.action0, frequency=10, probability=0.9
+        )
+        transition_data = self.representation.get_transition_data(
+            self.state0, self.state1, self.action0
+        )
+        self.assertEqual(transition_data["frequency"], 10)
+        self.assertEqual(transition_data["probability"], 0.9)
+
     def test_save_and_load_csv(self):
         """Test saving and loading a policy representation from CSV files."""
         nodes_path = self.tmp_dir / "test_nodes.csv"
         edges_path = self.tmp_dir / "test_edges.csv"
+        self.tmp_dir.mkdir(exist_ok=True)
+        if nodes_path.exists():
+            nodes_path.unlink()
+        if edges_path.exists():
+            edges_path.unlink()
         self.maxDiff = None
         self.representation.add_states_from(
             [self.state0, self.state1, self.state2, self.state3],
@@ -162,9 +180,22 @@ class TestPolicyRepresentation(unittest.TestCase):
             ),
         )
 
+        # Test with multiple transitions
+        self.representation.clear()
+        self.setup_test_graph()
+        self.representation.save_csv(self.discretizer, nodes_path, edges_path)
+        loaded_representation = GraphRepresentation.load_csv(
+            "networkx", self.discretizer, nodes_path, edges_path
+        )
+        self.assertEqual(len(loaded_representation.get_all_states()), 4)
+        self.assertEqual(len(loaded_representation.get_all_transitions()), 4)
+
     def test_save_and_load_gram(self):
         """Test saving and loading a policy representation from gram files."""
         gram_path = self.tmp_dir / "test.gram"
+        self.tmp_dir.mkdir(exist_ok=True)
+        if gram_path.exists():
+            gram_path.unlink()
         self.maxDiff = None
         self.representation.add_states_from(
             [self.state0, self.state1, self.state2, self.state3],
@@ -199,6 +230,16 @@ class TestPolicyRepresentation(unittest.TestCase):
             ),
         )
 
+        # Test with multiple transitions
+        self.representation.clear()
+        self.setup_test_graph()
+        self.representation.save_gram(self.discretizer, gram_path)
+        loaded_representation = GraphRepresentation.load_gram(
+            "networkx", self.discretizer, gram_path
+        )
+        self.assertEqual(len(loaded_representation.get_all_states()), 4)
+        self.assertEqual(len(loaded_representation.get_all_transitions()), 4)
+
     def test_get_possible_actions(self):
         """Test getting possible actions from a state."""
         self.setup_test_graph()
@@ -212,6 +253,13 @@ class TestPolicyRepresentation(unittest.TestCase):
         )
         actions = self.representation.get_possible_actions(nonexistent_state)
         self.assertEqual(len(actions), 0)
+
+        # Test with multiple actions
+        self.representation.add_transition(self.state0, self.state2, 1)
+        actions = self.representation.get_possible_actions(self.state0)
+        self.assertEqual(len(actions), 2)
+        self.assertIn(self.action0, actions)
+        self.assertIn(1, actions)
 
     def test_get_possible_next_states(self):
         """Test getting possible next states from a state."""
@@ -233,6 +281,15 @@ class TestPolicyRepresentation(unittest.TestCase):
         next_states = self.representation.get_possible_next_states(nonexistent_state)
         self.assertEqual(len(next_states), 0)
 
+        # Test with multiple next states
+        self.representation.add_transition(self.state0, self.state2, self.action0)
+        next_states = self.representation.get_possible_next_states(
+            self.state0, self.action0
+        )
+        self.assertEqual(len(next_states), 2)
+        self.assertIn(self.state1, next_states)
+        self.assertIn(self.state2, next_states)
+
     def test_get_transitions_from_state(self):
         """Test getting transitions from a state, grouped by action."""
         self.setup_test_graph()
@@ -247,6 +304,15 @@ class TestPolicyRepresentation(unittest.TestCase):
         )
         transitions = self.representation.get_transitions_from_state(nonexistent_state)
         self.assertEqual(len(transitions), 0)
+
+        # Test with multiple transitions
+        self.representation.add_transition(self.state0, self.state2, 1)
+        transitions = self.representation.get_transitions_from_state(self.state0)
+        self.assertEqual(len(transitions), 2)
+        self.assertIn(self.action0, transitions)
+        self.assertIn(1, transitions)
+        self.assertIn(self.state1, transitions[self.action0])
+        self.assertIn(self.state2, transitions[1])
 
     def test_get_state_attributes(self):
         """Test getting and setting state attributes."""
@@ -373,6 +439,19 @@ class TestPolicyRepresentation(unittest.TestCase):
         transition_data = self.representation.get_transition_data(
             self.state0, self.state1, self.action0
         )
+        self.assertEqual(transition_data["frequency"], 1)
+
+        # Test with a trajectory of integers
+        self.representation.clear()
+        trajectory_int = [0, 0, 1, 0, 2, 0, 3, 0, 0]
+        self.representation.add_trajectory(trajectory_int)
+        self.assertEqual(len(self.representation.get_all_states()), 4)
+        self.assertEqual(len(self.representation.get_all_transitions()), 4)
+        self.assertTrue(self.representation.has_transition(0, 1, 0))
+        self.assertTrue(self.representation.has_transition(1, 2, 0))
+        self.assertTrue(self.representation.has_transition(2, 3, 0))
+        self.assertTrue(self.representation.has_transition(3, 0, 0))
+        transition_data = self.representation.get_transition_data(0, 1, 0)
         self.assertEqual(transition_data["frequency"], 1)
 
     def setup_test_graph(self):

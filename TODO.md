@@ -29,7 +29,7 @@ This document outlines the plan to refactor the `pgeon` codebase to improve modu
 
 - [x] Update tests to reflect refactoring.
   - [x] Remove or update tests for deprecated files (`test_policy_graph.py`, `test_intention_introspector.py`).
-- [ ] Enhance tests for `test_policy_approximator.py` and `test_policy_representation.py`.
+- [x] Enhance tests for `test_policy_approximator.py` and `test_policy_representation.py`.
 - [ ] Add new tests to improve coverage.
   - [ ] Write unit tests for new or modified functionality.
   - [ ] Implement end-to-end tests using the `cartpole` environment.

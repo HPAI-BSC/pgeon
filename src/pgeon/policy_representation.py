@@ -573,11 +573,6 @@ class GraphRepresentation(PolicyRepresentation):
         if not edges_path.suffix == ".csv":
             raise ValueError(f"Edges file must have a .csv extension, got {edges_path}")
 
-        if nodes_path.exists():
-            raise FileExistsError(f"Nodes file {nodes_path} already exists")
-        if edges_path.exists():
-            raise FileExistsError(f"Edges file {edges_path} already exists")
-
         nodes_path.parent.mkdir(parents=True, exist_ok=True)
         edges_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -614,8 +609,6 @@ class GraphRepresentation(PolicyRepresentation):
     def save_gram(self, discretizer: Discretizer, path: Path):
         if not path.suffix == ".gram":
             raise ValueError(f"File must have a .gram extension, got {path}")
-        if path.exists():
-            raise FileExistsError(f"File {path} already exists")
         path.parent.mkdir(parents=True, exist_ok=True)
 
         node_info = {
