@@ -160,27 +160,16 @@ class OfflinePolicyApproximator(PolicyApproximator):
                     "frequency": state_freq,
                 }
 
-        with open(
-            f"{path_trajectories}{'' if path_to_trajs_includes_csv else '.csv'}",
-            "r+",
-        ) as f:
-            csv_r = csv.reader(f)
-
-            for csv_trajectory in csv_r:
-                trajectory = []
-                for elem_position, element in enumerate(csv_trajectory):
-                    # Process state
-                    if elem_position % 2 == 0:
-                        trajectory.append(node_info[int(element)]["value"])
-                    # Process action
-                    else:
-                        trajectory.append(int(element))
-
+        with open(path_trajectories, "r") as f:
+            csv_r = csv.reader(f, delimiter=" ")
+            next(csv_r)  # Skip header
+            for row in csv_r:
+                trajectory = [int(x) for x in row]
                 approximator.policy_representation.add_trajectory(trajectory)
                 approximator._trajectories_of_last_fit.append(trajectory)
 
-        approximator._normalize()
         approximator._is_fit = True
+        approximator._normalize()
         return approximator
 
     def fit(self):

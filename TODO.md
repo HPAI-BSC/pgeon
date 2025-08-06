@@ -18,18 +18,18 @@ This document outlines the plan to refactor the `pgeon` codebase to improve modu
 - [x] Deprecate `IntentionIntrospector` (`src/pgeon/intention_introspector.py`).
   - [x] Move intention finding logic into `IntentionAwarePolicyGraph` or a new dedicated class that uses the new abstractions.
   - [x] Remove `src/pgeon/intention_introspector.py`.
-- [ ] Refactor `PolicyApproximator` and `PolicyRepresentation`.
-  - [ ] Ensure `PolicyApproximatorFromBasicObservation` correctly and consistently uses a `PolicyRepresentation` instance.
-  - [ ] Remove redundant methods between the old `PolicyGraph` and the new approximators.
-- [ ] Refactor `ipg_xai.py` for better integration.
-  - [ ] Update `IPG_XAI_analyser` to use `PolicyApproximator` and `PolicyRepresentation` instead of `PolicyGraph`.
-  - [ ] Ensure type consistency with the new abstractions.
+- [x] Refactor `PolicyApproximator` and `PolicyRepresentation`.
+  - [x] Ensure `PolicyApproximatorFromBasicObservation` correctly and consistently uses a `PolicyRepresentation` instance.
+  - [x] Remove redundant methods between the old `PolicyGraph` and the new approximators.
+- [x] Refactor `ipg_xai.py` for better integration.
+  - [x] Update `IPG_XAI_analyser` to use `PolicyApproximator` and `PolicyRepresentation` instead of `PolicyGraph`.
+  - [x] Ensure type consistency with the new abstractions.
 
 ## 3. Testing
 
-- [ ] Update tests to reflect refactoring.
-  - [ ] Remove or update tests for deprecated files (`test_policy_graph.py`, `test_intention_introspector.py`).
-  - [ ] Enhance tests for `test_policy_approximator.py` and `test_policy_representation.py`.
+- [x] Update tests to reflect refactoring.
+  - [x] Remove or update tests for deprecated files (`test_policy_graph.py`, `test_intention_introspector.py`).
+- [ ] Enhance tests for `test_policy_approximator.py` and `test_policy_representation.py`.
 - [ ] Add new tests to improve coverage.
   - [ ] Write unit tests for new or modified functionality.
   - [ ] Implement end-to-end tests using the `cartpole` environment.

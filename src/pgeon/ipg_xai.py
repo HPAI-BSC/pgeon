@@ -22,7 +22,9 @@ class IPG_XAI_analyser:
     def answer_what(self, state: State, c_threshold: float) -> Dict[str, float]:
         return {
             dname: value
-            for dname, value in self.ipg.graph.nodes[state]["intention"].items()
+            for dname, value in self.ipg.policy_representation.get_state_attributes(
+                "intention"
+            )[state].items()
             if value >= c_threshold
         }
 

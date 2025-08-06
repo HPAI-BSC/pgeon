@@ -484,29 +484,24 @@ class GraphRepresentation(PolicyRepresentation):
         return result
 
     def add_trajectory(self, trajectory: list[Any]) -> None:
-        """Add a trajectory to the policy representation."""
-        # Only even numbers are states
-        states_in_trajectory = [
-            trajectory[i] for i in range(len(trajectory)) if i % 2 == 0
-        ]
-        all_new_states_in_trajectory = {
-            state for state in set(states_in_trajectory) if not self.has_state(state)
-        }
-        self.add_states_from(all_new_states_in_trajectory, frequency=0)
-
-        state_frequencies = {
-            s: states_in_trajectory.count(s) for s in set(states_in_trajectory)
-        }
-        for state in state_frequencies:
-            self.graph.get_node(state)["frequency"] += state_frequencies[state]
-
-        pointer = 0
-        while (pointer + 1) < len(trajectory):
-            state_from, action, state_to = trajectory[pointer : pointer + 3]
-            if not self.has_transition(state_from, state_to, action):
-                self.add_transition(state_from, state_to, action, frequency=0)
-            self.get_transition_data(state_from, state_to, action)["frequency"] += 1
-            pointer += 2
+        """Adds a trajectory to the graph.
+        A trajectory is a list of (state, action) tuples or (state, action, next_state) tuples.
+        """
+        if isinstance(trajectory[0], int):
+            for i in range(0, len(trajectory), 2):
+                if i + 2 < len(trajectory):
+                    state_from = trajectory[i]
+                    action = trajectory[i + 1]
+                    state_to = trajectory[i + 2]
+                    self.add_transition(state_from, state_to, action, frequency=1)
+        elif len(trajectory[0]) == 2:
+            for i in range(len(trajectory) - 1):
+                state_from, action = trajectory[i]
+                state_to, _ = trajectory[i + 1]
+                self.add_transition(state_from, state_to, action, frequency=1)
+        else:
+            for state_from, action, state_to in trajectory:
+                self.add_transition(state_from, state_to, action, frequency=1)
 
     def __getitem__(self, state: StateRepresentation) -> Any:
         """Get the transitions from a state, organized by destination state."""

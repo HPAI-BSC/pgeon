@@ -1,9 +1,13 @@
 import unittest
+from test.domain.cartpole import CartpoleDiscretizer
+from test.domain.test_env import State, TestingAgent, TestingDiscretizer, TestingEnv
 
 from pgeon import GraphRepresentation, Predicate
-from pgeon.policy_approximator import PolicyApproximatorFromBasicObservation
-from test.domain.test_env import State, TestingDiscretizer, TestingEnv, TestingAgent
 from pgeon.discretizer import PredicateBasedStateRepresentation
+from pgeon.policy_approximator import (
+    OfflinePolicyApproximator,
+    PolicyApproximatorFromBasicObservation,
+)
 from pgeon.policy_representation import Action
 
 
@@ -177,6 +181,79 @@ class TestPolicyApproximator(unittest.TestCase):
         action, prob = result[0]
         self.assertEqual(action, 0)
         self.assertEqual(prob, 1.0)
+
+    def test_fit_update(self):
+        self.approximator.fit(n_episodes=1)
+        self.assertEqual(len(self.approximator._trajectories_of_last_fit), 1)
+
+        self.approximator.fit(n_episodes=1, update=True)
+        self.assertEqual(len(self.approximator._trajectories_of_last_fit), 2)
+
+    def test_save(self):
+        self.approximator.fit(n_episodes=1)
+
+        with self.assertRaises(NotImplementedError):
+            self.approximator.save(format="unsupported", path="")
+
+        with self.assertRaises(Exception):
+            self.approximator.save(format="csv", path="path")
+
+        with self.assertRaises(Exception):
+            self.approximator.save(format="gram", path=["path"])
+
+        with self.assertRaises(Exception):
+            self.approximator.save(format="pickle", path=["path"])
+
+
+class TestOfflinePolicyApproximator(unittest.TestCase):
+    def setUp(self):
+        self.discretizer = CartpoleDiscretizer()
+
+    def test_from_nodes_and_edges(self):
+        approximator = OfflinePolicyApproximator.from_nodes_and_edges(
+            "test/data/cartpole_nodes_small.csv",
+            "test/data/cartpole_edges_small.csv",
+            self.discretizer,
+        )
+
+        self.assertTrue(approximator._is_fit)
+        self.assertEqual(len(approximator.policy_representation.get_all_states()), 4)
+        self.assertEqual(
+            len(approximator.policy_representation.get_all_transitions()), 18
+        )
+
+    def test_from_nodes_and_trajectories(self):
+        approximator = OfflinePolicyApproximator.from_nodes_and_trajectories(
+            "test/data/cartpole_nodes_small.csv",
+            "test/data/cartpole_trajectories_small.csv",
+            self.discretizer,
+        )
+        self.assertTrue(approximator._is_fit)
+        self.assertEqual(len(approximator.policy_representation.get_all_states()), 4)
+        self.assertEqual(
+            len(approximator.policy_representation.get_all_transitions()), 4
+        )
+
+    def test_from_pickle(self):
+        # First, create a pickle file to test with
+        approximator = OfflinePolicyApproximator.from_nodes_and_edges(
+            "test/data/cartpole_nodes_small.csv",
+            "test/data/cartpole_edges_small.csv",
+            self.discretizer,
+        )
+        approximator.save("pickle", "test/data/cartpole_small.pickle")
+
+        # Now, load from the pickle file and test
+        loaded_approximator = OfflinePolicyApproximator.from_pickle(
+            "test/data/cartpole_small.pickle"
+        )
+        self.assertTrue(loaded_approximator._is_fit)
+        self.assertEqual(
+            len(loaded_approximator.policy_representation.get_all_states()), 4
+        )
+        self.assertEqual(
+            len(loaded_approximator.policy_representation.get_all_transitions()), 18
+        )
 
 
 if __name__ == "__main__":

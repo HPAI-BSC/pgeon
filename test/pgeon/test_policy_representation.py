@@ -341,6 +341,40 @@ class TestPolicyRepresentation(unittest.TestCase):
         )
         self.assertIn(next_state, possible_next_states)
 
+    def test_add_trajectory(self):
+        """Test adding a trajectory to the representation."""
+        self.representation.clear()
+
+        trajectory = [
+            (self.state0, self.action0, self.state1),
+            (self.state1, self.action0, self.state2),
+            (self.state2, self.action0, self.state3),
+            (self.state3, self.action0, self.state0),
+        ]
+
+        self.representation.add_trajectory(trajectory)
+
+        self.assertEqual(len(self.representation.get_all_states()), 4)
+        self.assertEqual(len(self.representation.get_all_transitions()), 4)
+
+        self.assertTrue(
+            self.representation.has_transition(self.state0, self.state1, self.action0)
+        )
+        self.assertTrue(
+            self.representation.has_transition(self.state1, self.state2, self.action0)
+        )
+        self.assertTrue(
+            self.representation.has_transition(self.state2, self.state3, self.action0)
+        )
+        self.assertTrue(
+            self.representation.has_transition(self.state3, self.state0, self.action0)
+        )
+
+        transition_data = self.representation.get_transition_data(
+            self.state0, self.state1, self.action0
+        )
+        self.assertEqual(transition_data["frequency"], 1)
+
     def setup_test_graph(self):
         """Helper method to set up a test graph for multiple tests."""
         self.representation.clear()
