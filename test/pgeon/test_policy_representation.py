@@ -6,9 +6,12 @@ from typing import Dict, List, Tuple
 import networkx as nx
 
 from pgeon import GraphRepresentation, Predicate
-from pgeon.discretizer import PredicateBasedStateRepresentation, StateRepresentation
+from pgeon.discretizer import (
+    PredicateBasedStateRepresentation,
+    StateRepresentation,
+    Transition,
+)
 from pgeon.policy_representation import Action
-from pgeon.transition import Transition
 
 
 class TestPolicyRepresentation(unittest.TestCase):
@@ -77,7 +80,9 @@ class TestPolicyRepresentation(unittest.TestCase):
         )
 
         self.representation.add_transition(
-            self.state0, self.state1, self.action0, frequency=5, probability=1.0
+            self.state0,
+            self.state1,
+            Transition(action=self.action0, frequency=5, probability=1.0),
         )
 
         self.assertTrue(self.representation.has_transition(self.state0, self.state1))
@@ -122,7 +127,9 @@ class TestPolicyRepresentation(unittest.TestCase):
 
         # Test updating an existing transition
         self.representation.add_transition(
-            self.state0, self.state1, self.action0, frequency=10, probability=0.9
+            self.state0,
+            self.state1,
+            Transition(action=self.action0, frequency=10, probability=0.9),
         )
         transition_data = self.representation.get_transition_data(
             self.state0, self.state1, self.action0
@@ -146,7 +153,9 @@ class TestPolicyRepresentation(unittest.TestCase):
             probability=0.25,
         )
         self.representation.add_transition(
-            self.state0, self.state1, self.action0, frequency=5, probability=1.0
+            self.state0,
+            self.state1,
+            Transition(action=self.action0, frequency=5, probability=1.0),
         )
 
         self.representation.save_csv(self.discretizer, nodes_path, edges_path)
@@ -196,7 +205,9 @@ class TestPolicyRepresentation(unittest.TestCase):
             probability=0.25,
         )
         self.representation.add_transition(
-            self.state0, self.state1, self.action0, frequency=5, probability=1.0
+            self.state0,
+            self.state1,
+            Transition(action=self.action0, frequency=5, probability=1.0),
         )
 
         self.representation.save_gram(self.discretizer, gram_path)
@@ -233,39 +244,32 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertEqual(len(loaded_representation.get_all_states()), 4)
         self.assertEqual(len(loaded_representation.get_all_transitions()), 4)
 
-    def test_get_possible_actions(self):
+    def test_get_possible_transitions(self):
         """Test getting possible actions from a state."""
         self.setup_test_graph()
 
-        actions = self.representation.get_possible_actions(self.state0)
+        actions = self.representation.get_possible_transitions(self.state0)
         self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0][0], self.action0)
-        self.assertEqual(actions[0][1], 1.0)
+        self.assertEqual(actions[0].action, self.action0)
+        self.assertEqual(actions[0].probability, 1.0)
 
         nonexistent_state = PredicateBasedStateRepresentation(
             (Predicate(State.ZERO), Predicate(State.ONE))
         )
-        actions = self.representation.get_possible_actions(nonexistent_state)
+        actions = self.representation.get_possible_transitions(nonexistent_state)
         self.assertEqual(len(actions), 0)
 
         # Test with multiple actions
-        self.representation.add_transition(self.state0, self.state2, 1, probability=0.5)
         self.representation.add_transition(
-            self.state0, self.state3, self.action0, probability=0.5
+            self.state0, self.state2, Transition(action=1, probability=0.5)
         )
-        actions = self.representation.get_possible_actions(self.state0)
-        self.assertEqual(len(actions), 2)
-
-        # The order of actions is not guaranteed, so we check for both possibilities
-        if actions[0][0] == self.action0:
-            self.assertEqual(actions[0][1], 1.5)
-            self.assertEqual(actions[1][0], 1)
-            self.assertEqual(actions[1][1], 0.5)
-        else:
-            self.assertEqual(actions[0][0], 1)
-            self.assertEqual(actions[0][1], 0.5)
-            self.assertEqual(actions[1][0], self.action0)
-            self.assertEqual(actions[1][1], 1.5)
+        self.representation.add_transition(
+            self.state0,
+            self.state3,
+            Transition(action=self.action0, probability=0.5),
+        )
+        transitions = self.representation.get_possible_transitions(self.state0)
+        self.assertEqual(len(transitions), 3)
 
     def test_get_possible_next_states(self):
         """Test getting possible next states from a state."""
@@ -288,7 +292,9 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertEqual(len(next_states), 0)
 
         # Test with multiple next states
-        self.representation.add_transition(self.state0, self.state2, self.action0)
+        self.representation.add_transition(
+            self.state0, self.state2, Transition(action=self.action0)
+        )
         next_states = self.representation.get_possible_next_states(
             self.state0, self.action0
         )
@@ -312,7 +318,9 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertEqual(len(transitions), 0)
 
         # Test with multiple transitions
-        self.representation.add_transition(self.state0, self.state2, 1)
+        self.representation.add_transition(
+            self.state0, self.state2, Transition(action=1)
+        )
         transitions = self.representation.get_transitions_from_state(self.state0)
         self.assertEqual(len(transitions), 2)
         self.assertIn(self.action0, transitions)
@@ -355,8 +363,7 @@ class TestPolicyRepresentation(unittest.TestCase):
         )
         self.assertEqual(len(transitions), 1)
         for _, _, data in transitions:
-            self.assertIn("transition", data)
-            transition_obj = Transition.model_validate(data["transition"])
+            transition_obj = Transition.model_validate(data)
             self.assertIn("frequency", transition_obj.model_dump())
             self.assertIn("probability", transition_obj.model_dump())
 
@@ -481,16 +488,18 @@ class TestPolicyRepresentation(unittest.TestCase):
             transitions, frequency=1, probability=1.0
         )
 
-    def test_get_possible_actions_single_transition(self):
+    def test_get_possible_transitions_single_transition(self):
         """Test getting possible actions from a state with a single transition."""
         self.representation.add_states_from([self.state0, self.state1])
         self.representation.add_transition(
-            self.state0, self.state1, self.action0, frequency=1, probability=1.0
+            self.state0,
+            self.state1,
+            Transition(action=self.action0, frequency=1, probability=1.0),
         )
-        actions = self.representation.get_possible_actions(self.state0)
+        actions = self.representation.get_possible_transitions(self.state0)
         self.assertEqual(len(actions), 1)
-        self.assertEqual(actions[0][0], self.action0)
-        self.assertEqual(actions[0][1], 1.0)
+        self.assertEqual(actions[0].action, self.action0)
+        self.assertEqual(actions[0].probability, 1.0)
 
 
 if __name__ == "__main__":

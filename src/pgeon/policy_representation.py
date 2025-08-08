@@ -11,13 +11,11 @@ from typing import (
     Optional,
     Tuple,
     cast,
-    defaultdict,
 )
 
 import networkx as nx
 
-from pgeon.discretizer import Action, Discretizer, StateRepresentation
-from pgeon.transition import Transition
+from pgeon.discretizer import Action, Discretizer, StateRepresentation, Transition
 
 
 class ProbabilityQuery: ...
@@ -62,9 +60,7 @@ class PolicyRepresentation(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_possible_actions(
-        self, state: StateRepresentation
-    ) -> List[Tuple[Action, float]]:
+    def get_possible_transitions(self, state: StateRepresentation) -> List[Transition]:
         """Get all possible actions from a state."""
         ...
 
@@ -363,24 +359,16 @@ class GraphRepresentation(PolicyRepresentation):
         ...
 
     # Implementation of PolicyRepresentation interface using graph terminology
-    def get_possible_actions(
-        self, state: StateRepresentation
-    ) -> List[Tuple[Action, float]]:
-        """Get all possible actions from a state with their probabilities."""
+    def get_possible_transitions(self, state: StateRepresentation) -> List[Transition]:
+        """Get all possible transitions from a state with their probabilities."""
         if not self.has_state(state):
             return []
 
-        # In cases where there are multiple edges for the same action from a state,
-        # we need to sum their probabilities.
-        action_probabilities = defaultdict(float)
+        transitions = []
         for _, _, data in self.graph.out_edges(state, data=True):
-            if "transition" in data:
-                transition = Transition.model_validate(data["transition"])
-                action_probabilities[transition.action] += transition.probability
+            transitions.append(Transition.model_validate(data))
 
-        return sorted(
-            action_probabilities.items(), key=lambda item: item[1], reverse=True
-        )
+        return sorted(transitions, key=lambda item: item.probability, reverse=True)
 
     def get_possible_next_states(
         self, state: StateRepresentation, action: Optional[Action] = None
@@ -392,10 +380,9 @@ class GraphRepresentation(PolicyRepresentation):
             return [to_state for _, to_state in self.graph.out_edges(state)]
         next_states = []
         for _, to_state, data in self.graph.out_edges(state, data=True):
-            if "transition" in data:
-                transition = Transition.model_validate(data["transition"])
-                if transition.action == action:
-                    next_states.append(to_state)
+            transition = Transition.model_validate(data)
+            if transition.action == action:
+                next_states.append(to_state)
         return next_states
 
     def has_state(self, state: StateRepresentation) -> bool:
@@ -416,13 +403,11 @@ class GraphRepresentation(PolicyRepresentation):
         self,
         from_state: StateRepresentation,
         to_state: StateRepresentation,
-        action: Action,
-        **attributes,
+        transition: Transition,
     ) -> None:
         """Add a transition between states with an action and optional attributes."""
-        transition = Transition(action=action, **attributes)
         self.graph.add_edge(
-            from_state, to_state, key=action, transition=transition.model_dump()
+            from_state, to_state, key=transition.action, **transition.model_dump()
         )
 
     def add_transitions_from(
@@ -434,18 +419,22 @@ class GraphRepresentation(PolicyRepresentation):
     ) -> None:
         """Add multiple transitions with optional attributes."""
         for from_state, to_state, action in transitions:
-            self.add_transition(from_state, to_state, action, **attributes)
+            self.add_transition(
+                from_state,
+                to_state,
+                Transition(action=action, **attributes),
+            )
 
     def get_transition_data(
         self,
         from_state: StateRepresentation,
         to_state: StateRepresentation,
         action: Action,
-    ) -> Dict[str, Any]:
+    ) -> Transition:
         """Get data associated with a specific transition."""
         data = self.graph.get_edge_data(from_state, to_state, action)
-        if data and "transition" in data:
-            return Transition.model_validate(data["transition"])
+        if data:
+            return Transition.model_validate(data)
         return None
 
     def has_transition(
@@ -496,9 +485,8 @@ class GraphRepresentation(PolicyRepresentation):
 
         result = {}
         for _, to_state, data in self.graph.out_edges(state, data=True):
-            if "transition" in data:
-                transition = Transition.model_validate(data["transition"])
-                action = transition.action
+            if "action" in data:
+                action = data["action"]
                 if action not in result:
                     result[action] = []
                 result[action].append(to_state)
@@ -514,15 +502,21 @@ class GraphRepresentation(PolicyRepresentation):
                     state_from = trajectory[i]
                     action = trajectory[i + 1]
                     state_to = trajectory[i + 2]
-                    self.add_transition(state_from, state_to, action, frequency=1)
+                    self.add_transition(
+                        state_from, state_to, Transition(action=action, frequency=1)
+                    )
         elif len(trajectory[0]) == 2:
             for i in range(len(trajectory) - 1):
                 state_from, action = trajectory[i]
                 state_to, _ = trajectory[i + 1]
-                self.add_transition(state_from, state_to, action, frequency=1)
+                self.add_transition(
+                    state_from, state_to, Transition(action=action, frequency=1)
+                )
         else:
             for state_from, action, state_to in trajectory:
-                self.add_transition(state_from, state_to, action, frequency=1)
+                self.add_transition(
+                    state_from, state_to, Transition(action=action, frequency=1)
+                )
 
     def __getitem__(self, state: StateRepresentation) -> Any:
         """Get the transitions from a state, organized by destination state."""
@@ -581,9 +575,7 @@ class GraphRepresentation(PolicyRepresentation):
                 representation.add_transition(
                     node_from,
                     node_to,
-                    action,
-                    frequency=freq,
-                    probability=prob,
+                    Transition(action=action, frequency=freq, probability=prob),
                 )
         return representation
 
@@ -616,17 +608,16 @@ class GraphRepresentation(PolicyRepresentation):
             csv_w.writerow(["from", "to", "action", "p(s)", "frequency"])
             for edge in self.get_all_transitions(include_data=True):
                 state_from, state_to, data = edge
-                if "transition" in data:
-                    transition = Transition.model_validate(data["transition"])
-                    csv_w.writerow(
-                        [
-                            node_ids[state_from],
-                            node_ids[state_to],
-                            transition.action,
-                            transition.probability,
-                            transition.frequency,
-                        ]
-                    )
+                transition = Transition.model_validate(data)
+                csv_w.writerow(
+                    [
+                        node_ids[state_from],
+                        node_ids[state_to],
+                        transition.action,
+                        transition.probability,
+                        transition.frequency,
+                    ]
+                )
 
     def save_gram(self, discretizer: Discretizer, path: Path):
         if not path.suffix == ".gram":
@@ -646,9 +637,8 @@ class GraphRepresentation(PolicyRepresentation):
             action: {"id": i, "value": str(action)}
             for i, action in enumerate(
                 set(
-                    Transition.model_validate(data.get("transition")).action
+                    Transition.model_validate(data).action
                     for _, _, data in self.get_all_transitions(include_data=True)
-                    if "transition" in data
                 )
             )
         }
@@ -675,17 +665,16 @@ class GraphRepresentation(PolicyRepresentation):
             # Write edges
             for edge in self.get_all_transitions(include_data=True):
                 n_from, n_to, data = edge
-                if "transition" in data:
-                    transition = Transition.model_validate(data["transition"])
-                    action = transition.action
-                    if action is not None:
-                        f.write(
-                            f'\nMATCH (s{node_info[n_from]["id"]}:State) WHERE s{node_info[n_from]["id"]}.uid = "s{node_info[n_from]["id"]}" MATCH (s{node_info[n_to]["id"]}:State) WHERE s{node_info[n_to]["id"]}.uid = "s{node_info[n_to]["id"]}" CREATE (s{node_info[n_from]["id"]})-[:a{action_info[action]["id"]} '
-                            + "{"
-                            + f"probability:{transition.probability}, frequency:{transition.frequency}"
-                            + "}"
-                            + f"]->(s{node_info[n_to]['id']});"
-                        )
+                transition = Transition.model_validate(data)
+                action = transition.action
+                if action is not None:
+                    f.write(
+                        f'\nMATCH (s{node_info[n_from]["id"]}:State) WHERE s{node_info[n_from]["id"]}.uid = "s{node_info[n_from]["id"]}" MATCH (s{node_info[n_to]["id"]}:State) WHERE s{node_info[n_to]["id"]}.uid = "s{node_info[n_to]["id"]}" CREATE (s{node_info[n_from]["id"]})-[:a{action_info[action]["id"]} '
+                        + "{"
+                        + f"probability:{transition.probability}, frequency:{transition.frequency}"
+                        + "}"
+                        + f"]->(s{node_info[n_to]['id']});"
+                    )
 
     @staticmethod
     def load_gram(
@@ -790,9 +779,9 @@ class GraphRepresentation(PolicyRepresentation):
             representation.add_transition(
                 node_info[from_id],
                 node_info[to_id],
-                action_info[action_id],
-                probability=prob,
-                frequency=freq,
+                Transition(
+                    action=action_info[action_id], probability=prob, frequency=freq
+                ),
             )
 
         with open(path, "r") as f:

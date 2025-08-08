@@ -5,6 +5,7 @@ from pgeon.discretizer import (
     Predicate,
     PredicateBasedStateRepresentation,
     StateRepresentation,
+    Transition,
 )
 
 
@@ -68,6 +69,22 @@ class TestPredicate(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             p1 < "not a predicate"
+
+
+class TestTransition(unittest.TestCase):
+    def test_transition_creation(self):
+        """Test that a Transition object can be created with default values."""
+        transition = Transition(action=0)
+        self.assertEqual(transition.action, 0)
+        self.assertEqual(transition.probability, 0.0)
+        self.assertEqual(transition.frequency, 0)
+
+    def test_transition_creation_with_values(self):
+        """Test that a Transition object can be created with specified values."""
+        transition = Transition(action=1, probability=0.5, frequency=10)
+        self.assertEqual(transition.action, 1)
+        self.assertEqual(transition.probability, 0.5)
+        self.assertEqual(transition.frequency, 10)
 
 
 class TestPredicateBasedStateRepresentation(unittest.TestCase):

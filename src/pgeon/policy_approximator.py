@@ -23,9 +23,9 @@ from pgeon.discretizer import (
     Discretizer,
     PredicateBasedStateRepresentation,
     StateRepresentation,
+    Transition,
 )
 from pgeon.policy_representation import GraphRepresentation, PolicyRepresentation
-from pgeon.transition import Transition
 
 
 class Desire: ...
@@ -92,30 +92,24 @@ class PolicyApproximator(abc.ABC):
                 state, include_data=True
             )
             total_frequency = sum(
-                Transition.model_validate(d["transition"]).frequency
-                for _, _, d in transitions
-                if d and "transition" in d
+                Transition.model_validate(d).frequency for _, _, d in transitions if d
             )
 
             if total_frequency > 0:
                 for _, dest_state, d in transitions:
-                    if d and "transition" in d:
-                        transition = Transition.model_validate(d["transition"])
-                        action = transition.action
-                        if action is not None:
-                            # We need to access the graph backend directly to modify the edge data
-                            # as get_transition_data returns a copy
-                            edge_data = self.policy_representation.graph.get_edge_data(
-                                state, dest_state, key=action
+                    action = d.get("action")
+                    if action is not None:
+                        # We need to access the graph backend directly to modify the edge data
+                        # as get_transition_data returns a copy
+                        edge_data = self.policy_representation.graph.get_edge_data(
+                            state, dest_state, key=action
+                        )
+                        if edge_data:
+                            transition = Transition.model_validate(edge_data)
+                            transition.probability = (
+                                transition.frequency / total_frequency
                             )
-                            if edge_data and "transition" in edge_data:
-                                transition = Transition.model_validate(
-                                    edge_data["transition"]
-                                )
-                                transition.probability = (
-                                    transition.frequency / total_frequency
-                                )
-                                edge_data["transition"] = transition.model_dump()
+                            edge_data.update(transition.model_dump())
 
 
 # From agent and environment
@@ -251,7 +245,9 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
                 state_from, state_to, action
             ):
                 self.policy_representation.add_transition(
-                    state_from, state_to, action, frequency=1
+                    state_from,
+                    state_to,
+                    Transition(action=action, frequency=1),
                 )
             else:
                 edge_data = self.policy_representation.get_transition_data(
@@ -350,18 +346,35 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         if nearest_state is None:
             return []
 
-        possible_actions = self.policy_representation.get_possible_actions(
+        possible_transitions = self.policy_representation.get_possible_transitions(
             nearest_state
         )
 
         if verbose:
             print("I will take one of these actions:")
-            for action, prob in possible_actions:
-                if hasattr(action, "name"):
-                    print("\t->", action.name, "\tProb:", round(prob * 100, 2), "%")
+            for transition in possible_transitions:
+                if hasattr(transition.action, "name"):
+                    print(
+                        "\t->",
+                        transition.action.name,
+                        "\tProb:",
+                        round(transition.probability * 100, 2),
+                        "%",
+                    )
                 else:
-                    print("\t->", action, "\tProb:", round(prob * 100, 2), "%")
-        return possible_actions
+                    print(
+                        "\t->",
+                        transition.action,
+                        "\tProb:",
+                        round(transition.probability * 100, 2),
+                        "%",
+                    )
+        return [
+            (t.action, t.probability)
+            for t in sorted(
+                possible_transitions, key=lambda item: item.probability, reverse=True
+            )
+        ]
 
     def get_when_perform_action(
         self, action: Action
@@ -377,13 +390,12 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         )
         all_nodes = []
 
-        for transition in all_transitions:
-            if len(transition) >= 3:  # Check if we have data
-                u, _, data = transition
-                if "transition" in data:
-                    transition_model = Transition.model_validate(data["transition"])
-                    if transition_model.action == action:
-                        all_nodes.append(u)
+        for transition_tuple in all_transitions:
+            if len(transition_tuple) >= 3:  # Check if we have data
+                u, _, data = transition_tuple
+                transition_model = Transition.model_validate(data)
+                if transition_model.action == action:
+                    all_nodes.append(u)
 
         # Drop all the repeated nodes
         all_nodes = list(set(all_nodes))
@@ -402,11 +414,8 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
             for edge in edges:
                 if len(edge) >= 3:  # Check if we have data
                     u, _, data = edge
-                    if "transition" in data:
-                        transition = Transition.model_validate(data["transition"])
-                        best_actions.append(
-                            (u, transition.action, transition.probability)
-                        )
+                    transition = Transition.model_validate(data)
+                    best_actions.append((u, transition.action, transition.probability))
 
             if best_actions:
                 best_actions.sort(key=lambda x: x[2], reverse=True)
@@ -505,9 +514,8 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         for edge in out_edges:
             if len(edge) >= 3:  # Check if we have data
                 u, v, d = edge
-                if "transition" in d:
-                    transition = Transition.model_validate(d["transition"])
-                    outs.append((u, v, transition.action, transition.probability))
+                transition = Transition.model_validate(d)
+                outs.append((u, v, transition.action, transition.probability))
 
         result = []
         for u, v, a, w in outs:
@@ -536,22 +544,21 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         cast_predicate = cast(StateRepresentation, predicate)
         if greedy:
             nearest_predicate = self.get_nearest_state(cast_predicate, verbose=verbose)
-            possible_actions = self.policy_representation.get_possible_actions(
+            possible_transitions = self.policy_representation.get_possible_transitions(
                 nearest_predicate
             )
 
             # Possible actions always will have 1 element since for each state we only save the best action
-            if possible_actions:
-                return possible_actions[0][0]
+            if possible_transitions:
+                return possible_transitions[0].action
             return None
         else:
             nearest_predicate = self.get_nearest_state(cast_predicate, verbose=verbose)
-            possible_actions = self.policy_representation.get_possible_actions(
+            possible_transitions = self.policy_representation.get_possible_transitions(
                 nearest_predicate
             )
-            if possible_actions:
-                possible_actions = sorted(possible_actions, key=lambda x: x[1])
-                return possible_actions[-1][0]
+            if possible_transitions:
+                return possible_transitions[0].action
             return None
 
     def question3(
@@ -587,19 +594,20 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
         # Determine best action based on mode
         if mode == PGBasedPolicyMode.GREEDY:
-            possible_actions = self.policy_representation.get_possible_actions(
+            possible_transitions = self.policy_representation.get_possible_transitions(
                 predicate
             )
-            if possible_actions:
-                best_action = possible_actions[0][0]
+            if possible_transitions:
+                best_action = possible_transitions[0].action
             else:
                 best_action = None
         else:
-            possible_actions = self.policy_representation.get_possible_actions(
+            possible_transitions = self.policy_representation.get_possible_transitions(
                 predicate
             )
-            if possible_actions:
-                actions, probs = zip(*possible_actions)
+            if possible_transitions:
+                actions = [t.action for t in possible_transitions]
+                probs = [t.probability for t in possible_transitions]
                 best_action = np.random.choice(actions, p=probs)
             else:
                 best_action = None

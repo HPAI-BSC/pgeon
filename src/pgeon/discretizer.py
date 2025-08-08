@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Collection, Iterator, Sequence, Type, Union
 
+from pydantic import BaseModel
+
 
 class Predicate:
     def __init__(self, value: Enum):
@@ -71,6 +73,12 @@ class PredicateBasedStateRepresentation(StateRepresentation):
 
 # TODO: allow for more complex representations
 Action = int
+
+
+class Transition(BaseModel):
+    action: Action
+    probability: float = 0.0
+    frequency: int = 0
 
 
 class Discretizer(metaclass=abc.ABCMeta):
