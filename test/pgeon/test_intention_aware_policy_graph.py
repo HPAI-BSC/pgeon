@@ -76,17 +76,26 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
 
         self.state0 = PredicateBasedStateRepresentation((Predicate(State.ZERO),))
         self.state1 = PredicateBasedStateRepresentation((Predicate(State.ONE),))
-        self.state2 = PredicateBasedStateRepresentation((Predicate(State.TWO),))
-        self.state3 = PredicateBasedStateRepresentation((Predicate(State.THREE),))
         self.action0: Action = 0
-        self.action1: Action = 1
 
         self.desire_north = Desire("north", self.action0, {Predicate(State.ONE)})
-        self.desire_south = Desire("south", self.action1, {Predicate(State.TWO)})
 
-    def test_desire_registration(self):
+    def test_answer_what(self):
         self.ipg.register_desire(self.desire_north)
-        self.assertIn(self.desire_north, self.ipg.registered_desires)
+        intentions = self.ipg.answer_what(self.state1)
+        self.assertEqual(len(intentions), 1)
+        self.assertEqual(intentions[0][0], self.desire_north)
+
+    def test_answer_how(self):
+        self.ipg.register_desire(self.desire_north)
+        how_trace = self.ipg.answer_how(self.state0, [self.desire_north])
+        self.assertIn(self.desire_north, how_trace)
+        self.assertEqual(len(how_trace[self.desire_north]), 1)
+
+    def test_answer_why(self):
+        self.ipg.register_desire(self.desire_north)
+        why_trace = self.ipg.answer_why(self.state0, self.action0)
+        self.assertEqual(len(why_trace), 0)
 
 
 if __name__ == "__main__":

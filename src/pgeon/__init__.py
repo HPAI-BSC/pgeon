@@ -7,7 +7,6 @@ from .discretizer import (
 )
 from .environment import Environment
 from .intention_aware_policy_graph import IntentionAwarePolicyGraph
-from .ipg_xai import IPG_XAI_analyser
 from .policy_approximator import (
     OfflinePolicyApproximator,
     PolicyApproximator,
@@ -29,7 +28,6 @@ __all__ = [
     "GraphRepresentation",
     "IntentionalPolicyGraphRepresentation",
     "IntentionAwarePolicyGraph",
-    "IPG_XAI_analyser",
     "OfflinePolicyApproximator",
     "PolicyApproximator",
     "PolicyApproximatorFromBasicObservation",

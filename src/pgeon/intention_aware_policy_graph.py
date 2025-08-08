@@ -1,14 +1,14 @@
 import abc
 import warnings
 from dataclasses import asdict, dataclass
-from typing import Dict, Iterable, List, Optional, Set
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 import gymnasium as gym
 import numpy as np
 from tqdm import tqdm
 
 from pgeon.agent import Agent
-from pgeon.desire import Desire
+from pgeon.desire import Desire, Goal
 from pgeon.discretizer import (
     Discretizer,
     Predicate,
@@ -22,6 +22,11 @@ from pgeon.policy_representation import PolicyRepresentation
 
 ActionID = str
 StateID = PredicateBasedStateRepresentation
+State = StateID
+HowTrace = List[
+    Tuple[ActionID, State, float]
+]  # Doing action, arriving at state, which has intention
+WhyTrace = Dict[str, float | str]
 
 
 # TODO: Check this typing everywhere, tests are still passing
@@ -252,6 +257,7 @@ class IntentionAwarePolicyGraph(
             list()
         )  # TODO: temp fix since AbstractIPG init is not callable here
         self.verbose = verbose
+        self.c_threshold = 0.5
 
     def find_intentions(self, desires: Set[Desire], commitment_threshold: float):
         self.register_all_desires(desires)
@@ -615,3 +621,110 @@ class IntentionAwarePolicyGraph(
             a: self.prob(ProbQuery(a=a, given_s=state))
             for a in self.get_possible_actions(state)
         }
+
+    def answer_what(self, state: State) -> List[Tuple[Goal, float]]:
+        """Answers the question: What are the intentions in a given state?"""
+        return [
+            (d, v)
+            for d, v in self.policy_representation.get_state_attributes("intention")[
+                state
+            ].items()
+        ]
+
+    def answer_how(
+        self,
+        state: State,
+        desires: List[Desire],
+    ) -> Dict[Desire, HowTrace]:
+        """Answers the question: How to achieve a desire from a given state?"""
+        how_paths_per_desire = dict()
+        for desire in desires:
+            x = self.check_desire(state, desire)
+            if x is not None:
+                how_paths_per_desire[desire] = [
+                    (desire.action_idx, None, None)
+                ]  # Desire will get fulfilled here
+                continue
+            best_node, best_action, best_intention = None, None, 0
+            possible_actions = self.get_possible_actions(state)
+            for action in possible_actions:
+                pos_sprima = self.get_possible_s_prima(state, action)
+                for s_prima in pos_sprima:
+                    desc_intention = self.get_intention(s_prima, desire)
+                    if desc_intention > best_intention:
+                        best_node, best_action, best_intention = (
+                            s_prima,
+                            action,
+                            desc_intention,
+                        )
+                    elif desc_intention == best_intention:
+                        # if there's a more probable action choose that one
+                        act_prob = self.get_action_probability(state)
+                        if act_prob[action] > act_prob.get(best_action, 0):
+                            best_node, best_action, best_intention = (
+                                s_prima,
+                                action,
+                                desc_intention,
+                            )
+
+            tail = self.answer_how(best_node, [desire])[desire]
+            how_paths_per_desire[desire] = [
+                (best_action, best_node, best_intention)
+            ] + tail
+        return how_paths_per_desire
+
+    def answer_why(
+        self,
+        state: State,
+        action: ActionID,
+        minimum_probability_of_increase: float = 0,
+    ) -> Dict[Desire, WhyTrace]:
+        """Answers the question: Why was an action taken in a given state?"""
+        # minimum_probability_of_increase: minimum probability of intention increase by which we attribute the agent
+        # is trying to further an intention. eg: if it has 5% prob of increasing a desire but 95% of decreasing it
+        current_intentions = self.get_intentions(state)
+        current_attr_ints = {
+            d: I_d for d, I_d in current_intentions.items() if I_d >= self.c_threshold
+        }
+        if len(current_attr_ints) == 0:
+            return {}
+        else:
+            successors = [
+                (
+                    s_pr,
+                    self.prob(ProbQuery(s_prima=s_pr, given_a=action, given_s=state)),
+                    self.get_intentions(s_pr),
+                )
+                for s_pr in self.get_possible_s_prima(state, action)
+            ]
+
+            int_increase: Dict[Desire, WhyTrace] = {}
+            for d, curr_int in current_attr_ints.items():
+                if self.check_desire(state, d) is not None:
+                    if action == d.action_idx:
+                        int_increase[d] = "fulfilled"
+                        continue
+                # For each desire attributed, compute expected increase (sum_s' P(s'|a,s)*I_d(s') -I_d(s) ),
+                # probability of increase ( P(s'|a,s) iff I_d(s')>=I_d(s) ) and expected increase (but only if it is >0)
+                int_increase[d] = dict()
+                int_increase[d]["expected"] = 0
+                int_increase[d]["prob_increase"] = 0
+                int_increase[d]["expected_pos_increase"] = 0
+                for _, p, ints in successors:
+                    int_increase[d]["expected"] += p * ints[d]
+                    int_increase[d]["prob_increase"] += p if ints[d] >= curr_int else 0
+                    int_increase[d]["expected_pos_increase"] += (
+                        p * ints[d] if ints[d] >= curr_int else 0
+                    )
+                int_increase[d]["expected"] -= curr_int
+                int_increase[d]["expected_pos_increase"] = (
+                    int_increase[d]["expected_pos_increase"]
+                    / int_increase[d]["prob_increase"]
+                    if int_increase[d]["prob_increase"] > 0
+                    else 0
+                )
+                int_increase[d]["expected_pos_increase"] -= curr_int
+                if int_increase[d]["prob_increase"] <= minimum_probability_of_increase:
+                    # Action detracts from intention, or has too small a probability to increase to be considered
+                    del int_increase[d]
+            return int_increase
