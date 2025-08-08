@@ -5,9 +5,9 @@ from typing import Collection, Iterator, Sequence, Type, Union
 
 
 class Predicate:
-    def __init__(self, predicate: Type[Enum], value: Sequence[Enum]):
-        self.predicate: Type[Enum] = predicate
-        self.value: Sequence[Enum] = value
+    def __init__(self, value: Enum):
+        self.predicate: Type[Enum] = type(value)
+        self.value: Enum = value
 
     def __eq__(self, other):
         if not isinstance(other, Predicate):
@@ -15,7 +15,7 @@ class Predicate:
         return self.predicate == other.predicate and self.value == other.value
 
     def __str__(self):
-        return f"{self.predicate.__name__}({';'.join(str(pred.name) for pred in self.value)})"
+        return f"{self.predicate.__name__}({self.value.name})"
 
     def __repr__(self):
         return self.__str__()
@@ -47,16 +47,13 @@ class PredicateBasedStateRepresentation(StateRepresentation):
     def __eq__(
         self, other: Union["PredicateBasedStateRepresentation", tuple[Predicate, ...]]
     ) -> bool:
-        # If comparing with a tuple, convert the tuple to a list for comparison
         if isinstance(other, tuple):
-            # Compare the predicates with the tuple items
             if len(self.predicates) != len(other):
                 return False
             return all(p1 == p2 for p1, p2 in zip(self.predicates, other))
 
-        # If comparing with another StateRepresentation
-        if isinstance(other, StateRepresentation):
-            # If both are StateRepresentation, compare their predicates
+        if isinstance(other, PredicateBasedStateRepresentation):
+            # If both are PredicateBasedStateRepresentation, compare their predicates
             if len(self.predicates) != len(other.predicates):
                 return False
             return all(p1 == p2 for p1, p2 in zip(self.predicates, other.predicates))
@@ -65,6 +62,11 @@ class PredicateBasedStateRepresentation(StateRepresentation):
 
     def __hash__(self):
         return hash(tuple(self.predicates))
+
+    def __lt__(self, other):
+        if not isinstance(other, PredicateBasedStateRepresentation):
+            raise ValueError
+        return hash(self) < hash(other)
 
 
 # TODO: allow for more complex representations

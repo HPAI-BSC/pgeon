@@ -26,27 +26,20 @@ class TestPolicyApproximator(unittest.TestCase):
             self.discretizer, self.representation, self.env, self.agent
         )
 
-        self.state0 = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.ZERO]),)
-        )
-        self.state1 = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.ONE]),)
-        )
-        self.state2 = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.TWO]),)
-        )
-        self.state3 = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.THREE]),)
-        )
+        self.state0 = PredicateBasedStateRepresentation((Predicate(State.ZERO),))
+        self.state1 = PredicateBasedStateRepresentation((Predicate(State.ONE),))
+        self.state2 = PredicateBasedStateRepresentation((Predicate(State.TWO),))
+        self.state3 = PredicateBasedStateRepresentation((Predicate(State.THREE),))
 
         self.action0: Action = 0
+        self.action1: Action = 1
 
         self.original_get_predicate_space = self.discretizer.get_predicate_space
         self.discretizer.get_predicate_space = lambda: [
-            (Predicate(State, [State.ZERO]),),
-            (Predicate(State, [State.ONE]),),
-            (Predicate(State, [State.TWO]),),
-            (Predicate(State, [State.THREE]),),
+            (Predicate(State.ZERO),),
+            (Predicate(State.ONE),),
+            (Predicate(State.TWO),),
+            (Predicate(State.THREE),),
         ]
 
     def tearDown(self):
@@ -121,7 +114,7 @@ class TestPolicyApproximator(unittest.TestCase):
         self.assertEqual(prob, 1.0)
 
         nonexistent_state = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.ZERO]), Predicate(State, [State.ONE]))
+            (Predicate(State.ZERO), Predicate(State.ONE))
         )
         possible_actions = self.approximator.get_possible_actions(nonexistent_state)
         self.assertEqual(len(possible_actions), 1)
@@ -135,9 +128,11 @@ class TestPolicyApproximator(unittest.TestCase):
             self.state0, self.state1, self.action0, prob=0.5, frequency=1
         )
         self.representation.add_transition(
-            self.state0, self.state2, 1, prob=0.5, frequency=1
+            self.state0, self.state2, self.action1, prob=0.5, frequency=1
         )
-        possible_actions = self.approximator.get_possible_actions(self.state0)
+        possible_actions = self.approximator.get_possible_actions(
+            PredicateBasedStateRepresentation((Predicate(State.ZERO),))
+        )
         self.assertEqual(len(possible_actions), 2)
         self.assertEqual(possible_actions[0][0], 0)
         self.assertEqual(possible_actions[0][1], 0.5)
@@ -157,7 +152,7 @@ class TestPolicyApproximator(unittest.TestCase):
         self.assertEqual(nearest, self.state0)
 
         nonexistent_state = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.ZERO]), Predicate(State, [State.ONE]))
+            (Predicate(State.ZERO), Predicate(State.ONE))
         )
         nearest = self.approximator.get_nearest_predicate(nonexistent_state)
         self.assertIn(nearest, [self.state0, self.state1, self.state2, self.state3])
@@ -165,9 +160,7 @@ class TestPolicyApproximator(unittest.TestCase):
         # Test with multiple nearest predicates
         self.representation.clear()
         self.representation.add_states_from([self.state0, self.state1])
-        nonexistent_state = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.TWO]),)
-        )
+        nonexistent_state = PredicateBasedStateRepresentation((Predicate(State.TWO),))
         nearest = self.approximator.get_nearest_predicate(nonexistent_state)
         self.assertIn(nearest, [self.state0, self.state1])
 

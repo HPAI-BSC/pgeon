@@ -74,27 +74,15 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
         )
         self.ipg.fit(n_episodes=1)
 
-        self.state0 = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.ZERO]),)
-        )
-        self.state1 = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.ONE]),)
-        )
-        self.state2 = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.TWO]),)
-        )
-        self.state3 = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.THREE]),)
-        )
+        self.state0 = PredicateBasedStateRepresentation((Predicate(State.ZERO),))
+        self.state1 = PredicateBasedStateRepresentation((Predicate(State.ONE),))
+        self.state2 = PredicateBasedStateRepresentation((Predicate(State.TWO),))
+        self.state3 = PredicateBasedStateRepresentation((Predicate(State.THREE),))
         self.action0: Action = 0
         self.action1: Action = 1
 
-        self.desire_north = Desire(
-            "north", self.action0, {Predicate(State, [State.ONE])}
-        )
-        self.desire_south = Desire(
-            "south", self.action1, {Predicate(State, [State.TWO])}
-        )
+        self.desire_north = Desire("north", self.action0, {Predicate(State.ONE)})
+        self.desire_south = Desire("south", self.action1, {Predicate(State.TWO)})
 
     def test_desire_registration(self):
         self.ipg.register_desire(self.desire_north)

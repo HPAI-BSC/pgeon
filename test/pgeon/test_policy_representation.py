@@ -18,18 +18,10 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.discretizer = TestingDiscretizer()
 
         # Create states and actions for testing
-        self.state0 = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.ZERO]),)
-        )
-        self.state1 = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.ONE]),)
-        )
-        self.state2 = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.TWO]),)
-        )
-        self.state3 = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.THREE]),)
-        )
+        self.state0 = PredicateBasedStateRepresentation((Predicate(State.ZERO),))
+        self.state1 = PredicateBasedStateRepresentation((Predicate(State.ONE),))
+        self.state2 = PredicateBasedStateRepresentation((Predicate(State.TWO),))
+        self.state3 = PredicateBasedStateRepresentation((Predicate(State.THREE),))
 
         self.action0: Action = 0
         self.representation = GraphRepresentation()
@@ -249,7 +241,7 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertIn(self.action0, actions)
 
         nonexistent_state = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.ZERO]), Predicate(State, [State.ONE]))
+            (Predicate(State.ZERO), Predicate(State.ONE))
         )
         actions = self.representation.get_possible_actions(nonexistent_state)
         self.assertEqual(len(actions), 0)
@@ -276,7 +268,7 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertIn(self.state1, next_states)
 
         nonexistent_state = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.ZERO]), Predicate(State, [State.ONE]))
+            (Predicate(State.ZERO), Predicate(State.ONE))
         )
         next_states = self.representation.get_possible_next_states(nonexistent_state)
         self.assertEqual(len(next_states), 0)
@@ -300,7 +292,7 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertIn(self.state1, transitions[self.action0])
 
         nonexistent_state = PredicateBasedStateRepresentation(
-            (Predicate(State, [State.ZERO]), Predicate(State, [State.ONE]))
+            (Predicate(State.ZERO), Predicate(State.ONE))
         )
         transitions = self.representation.get_transitions_from_state(nonexistent_state)
         self.assertEqual(len(transitions), 0)

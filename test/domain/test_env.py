@@ -59,7 +59,7 @@ class TestingDiscretizer(Discretizer):
 
     def discretize(self, state: np.ndarray) -> Tuple[Predicate]:
         correct_predicate = [State.ZERO, State.ONE, State.TWO, State.THREE][state[0]]
-        return (Predicate(State, [correct_predicate]),)
+        return (Predicate(correct_predicate),)
 
     def all_actions(self):
         return [0]
@@ -70,15 +70,11 @@ class TestingDiscretizer(Discretizer):
         while True:
             value = state[0].value[0].value - 1
             yield (
-                Predicate(
-                    State, [State.ZERO, State.ONE, State.TWO, State.THREE][value % 4]
-                ),
+                Predicate([State.ZERO, State.ONE, State.TWO, State.THREE][value % 4]),
             )
 
     def state_to_str(self, state):
-        return state.predicates[0].value[0].name
+        return state.predicates[0].value.name
 
     def str_to_state(self, state_str):
-        return PredicateBasedStateRepresentation(
-            (Predicate(State, [State[state_str]]),)
-        )
+        return PredicateBasedStateRepresentation((Predicate(State[state_str]),))
