@@ -8,6 +8,7 @@ import networkx as nx
 from pgeon import GraphRepresentation, Predicate
 from pgeon.discretizer import PredicateBasedStateRepresentation, StateRepresentation
 from pgeon.policy_representation import Action
+from pgeon.transition import Transition
 
 
 class TestPolicyRepresentation(unittest.TestCase):
@@ -88,9 +89,9 @@ class TestPolicyRepresentation(unittest.TestCase):
         transition_data = self.representation.get_transition_data(
             self.state0, self.state1, self.action0
         )
-        self.assertEqual(transition_data["frequency"], 5)
-        self.assertEqual(transition_data["probability"], 1.0)
-        self.assertEqual(transition_data["action"], self.action0)
+        self.assertEqual(transition_data.frequency, 5)
+        self.assertEqual(transition_data.probability, 1.0)
+        self.assertEqual(transition_data.action, self.action0)
 
         # Add multiple transitions
         transitions = [
@@ -116,8 +117,8 @@ class TestPolicyRepresentation(unittest.TestCase):
         transition_data = self.representation.get_transition_data(
             self.state1, self.state2, self.action0
         )
-        self.assertEqual(transition_data["frequency"], 3)
-        self.assertEqual(transition_data["probability"], 0.75)
+        self.assertEqual(transition_data.frequency, 3)
+        self.assertEqual(transition_data.probability, 0.75)
 
         # Test updating an existing transition
         self.representation.add_transition(
@@ -126,8 +127,8 @@ class TestPolicyRepresentation(unittest.TestCase):
         transition_data = self.representation.get_transition_data(
             self.state0, self.state1, self.action0
         )
-        self.assertEqual(transition_data["frequency"], 10)
-        self.assertEqual(transition_data["probability"], 0.9)
+        self.assertEqual(transition_data.frequency, 10)
+        self.assertEqual(transition_data.probability, 0.9)
 
     def test_save_and_load_csv(self):
         """Test saving and loading a policy representation from CSV files."""
@@ -354,9 +355,10 @@ class TestPolicyRepresentation(unittest.TestCase):
         )
         self.assertEqual(len(transitions), 1)
         for _, _, data in transitions:
-            self.assertIn("action", data)
-            self.assertIn("frequency", data)
-            self.assertIn("probability", data)
+            self.assertIn("transition", data)
+            transition_obj = Transition.model_validate(data["transition"])
+            self.assertIn("frequency", transition_obj.model_dump())
+            self.assertIn("probability", transition_obj.model_dump())
 
     def test_clear(self):
         """Test clearing the representation."""
@@ -444,7 +446,7 @@ class TestPolicyRepresentation(unittest.TestCase):
         transition_data = self.representation.get_transition_data(
             self.state0, self.state1, self.action0
         )
-        self.assertEqual(transition_data["frequency"], 1)
+        self.assertEqual(transition_data.frequency, 1)
 
         # Test with a trajectory of integers
         self.representation.clear()
@@ -457,7 +459,7 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertTrue(self.representation.has_transition(2, 3, 0))
         self.assertTrue(self.representation.has_transition(3, 0, 0))
         transition_data = self.representation.get_transition_data(0, 1, 0)
-        self.assertEqual(transition_data["frequency"], 1)
+        self.assertEqual(transition_data.frequency, 1)
 
     def setup_test_graph(self):
         """Helper method to set up a test graph for multiple tests."""

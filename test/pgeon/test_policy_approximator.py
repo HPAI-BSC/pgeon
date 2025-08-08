@@ -9,6 +9,7 @@ from pgeon.policy_approximator import (
     PolicyApproximatorFromBasicObservation,
 )
 from pgeon.policy_representation import Action
+from pgeon.transition import Transition
 
 
 class TestPolicyApproximator(unittest.TestCase):
@@ -82,27 +83,27 @@ class TestPolicyApproximator(unittest.TestCase):
         transitions = self.representation.get_all_transitions(include_data=True)
         for transition in transitions:
             from_state, to_state, data = transition
-            if isinstance(data, dict) and "frequency" in data:
-                self.assertGreater(data["frequency"], 0)
-                self.assertIn("probability", data)
-                self.assertGreater(data["probability"], 0)
-                self.assertLessEqual(data["probability"], 1.0)
-                if from_state == self.state0:
-                    self.assertEqual(to_state, self.state1)
-                    self.assertEqual(data["action"], self.action0)
-                    self.assertEqual(data["probability"], 1.0)
-                elif from_state == self.state1:
-                    self.assertEqual(to_state, self.state2)
-                    self.assertEqual(data["action"], self.action0)
-                    self.assertEqual(data["probability"], 1.0)
-                elif from_state == self.state2:
-                    self.assertEqual(to_state, self.state3)
-                    self.assertEqual(data["action"], self.action0)
-                    self.assertEqual(data["probability"], 1.0)
-                elif from_state == self.state3:
-                    self.assertEqual(to_state, self.state0)
-                    self.assertEqual(data["action"], self.action0)
-                    self.assertEqual(data["probability"], 1.0)
+            self.assertIn("transition", data)
+            transition_obj = Transition.model_validate(data["transition"])
+            self.assertGreater(transition_obj.frequency, 0)
+            self.assertGreater(transition_obj.probability, 0)
+            self.assertLessEqual(transition_obj.probability, 1.0)
+            if from_state == self.state0:
+                self.assertEqual(to_state, self.state1)
+                self.assertEqual(transition_obj.action, self.action0)
+                self.assertEqual(transition_obj.probability, 1.0)
+            elif from_state == self.state1:
+                self.assertEqual(to_state, self.state2)
+                self.assertEqual(transition_obj.action, self.action0)
+                self.assertEqual(transition_obj.probability, 1.0)
+            elif from_state == self.state2:
+                self.assertEqual(to_state, self.state3)
+                self.assertEqual(transition_obj.action, self.action0)
+                self.assertEqual(transition_obj.probability, 1.0)
+            elif from_state == self.state3:
+                self.assertEqual(to_state, self.state0)
+                self.assertEqual(transition_obj.action, self.action0)
+                self.assertEqual(transition_obj.probability, 1.0)
 
     def test_get_nearest_state(self):
         self.approximator.fit(n_episodes=1)

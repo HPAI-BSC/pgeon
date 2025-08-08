@@ -14,6 +14,7 @@ from pgeon.policy_approximator import (
     PolicyApproximatorFromBasicObservation,
 )
 from pgeon.policy_representation import PolicyRepresentation
+from pgeon.transition import Transition
 
 ActionID = str
 StateID = PredicateBasedStateRepresentation
@@ -438,7 +439,10 @@ class IntentionAwarePolicyGraph(
 
     def get_intention(self, s: StateID, desire: Desire):
         try:
-            return self.policy_representation.graph.nodes()[s]["intention"][desire]
+            node_data = self.policy_representation.graph.nodes()[s]
+            if "intention" in node_data and desire in node_data["intention"]:
+                return node_data["intention"][desire]
+            return 0
         except KeyError:
             return 0
 
@@ -462,11 +466,12 @@ class IntentionAwarePolicyGraph(
         # Assuming the 's' is always in predicates format for simplicity
         try:
             prob = [
-                data["probability"]
+                Transition.model_validate(data["transition"]).probability
                 for orig, dest, data in self.policy_representation.graph.out_edges(
                     given_s, data=True
                 )
-                if a == data["action"] and dest == s_prima
+                if a == Transition.model_validate(data["transition"]).action
+                and dest == s_prima
             ]
             if len(prob) > 1:
                 raise AssertionError(
@@ -488,11 +493,11 @@ class IntentionAwarePolicyGraph(
         # Assuming the 's' is always in predicates format for simplicity
         try:
             prob = [
-                data["probability"]
+                Transition.model_validate(data["transition"]).probability
                 for orig, dest, data in self.policy_representation.graph.out_edges(
                     given_s, data=True
                 )
-                if a == data["action"]
+                if a == Transition.model_validate(data["transition"]).action
             ]
             if len(prob) == 0:
                 warnings.warn(
@@ -512,11 +517,12 @@ class IntentionAwarePolicyGraph(
             return 0
         else:
             prob = [
-                data["probability"]
+                Transition.model_validate(data["transition"]).probability
                 for orig, dest, data in self.policy_representation.graph.out_edges(
                     given_s, data=True
                 )
-                if given_a == data["action"] and dest == s_prima
+                if given_a == Transition.model_validate(data["transition"]).action
+                and dest == s_prima
             ]
             if len(prob) > 1:
                 raise AssertionError(
@@ -536,7 +542,7 @@ class IntentionAwarePolicyGraph(
 
     def _prob_s_prima_given_s(self, s_prima: StateID, given_s: StateID):
         prob = [
-            data["probability"]
+            Transition.model_validate(data["transition"]).probability
             for orig, dest, data in self.policy_representation.graph.out_edges(
                 given_s, data=True
             )
