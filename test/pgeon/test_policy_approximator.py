@@ -20,6 +20,7 @@ class TestPolicyApproximator(unittest.TestCase):
         self.env = TestingEnv()
         self.discretizer = TestingDiscretizer()
         self.representation = GraphRepresentation()
+        self.representation.clear()
         self.agent = TestingAgent()
 
         self.approximator = PolicyApproximatorFromBasicObservation(
@@ -130,9 +131,7 @@ class TestPolicyApproximator(unittest.TestCase):
         self.representation.add_transition(
             self.state0, self.state2, self.action1, prob=0.5, frequency=1
         )
-        possible_actions = self.approximator.get_possible_actions(
-            PredicateBasedStateRepresentation((Predicate(State.ZERO),))
-        )
+        possible_actions = self.approximator.get_possible_actions(self.state0)
         self.assertEqual(len(possible_actions), 2)
         self.assertEqual(possible_actions[0][0], 0)
         self.assertEqual(possible_actions[0][1], 0.5)
@@ -145,23 +144,23 @@ class TestPolicyApproximator(unittest.TestCase):
         possible_actions = self.approximator.get_possible_actions(self.state0)
         self.assertEqual(len(possible_actions), 0)
 
-    def test_get_nearest_predicate(self):
+    def test_get_nearest_state(self):
         self.approximator.fit(n_episodes=1)
 
-        nearest = self.approximator.get_nearest_predicate(self.state0)
+        nearest = self.approximator.get_nearest_state(self.state0)
         self.assertEqual(nearest, self.state0)
 
         nonexistent_state = PredicateBasedStateRepresentation(
             (Predicate(State.ZERO), Predicate(State.ONE))
         )
-        nearest = self.approximator.get_nearest_predicate(nonexistent_state)
+        nearest = self.approximator.get_nearest_state(nonexistent_state)
         self.assertIn(nearest, [self.state0, self.state1, self.state2, self.state3])
 
         # Test with multiple nearest predicates
         self.representation.clear()
         self.representation.add_states_from([self.state0, self.state1])
         nonexistent_state = PredicateBasedStateRepresentation((Predicate(State.TWO),))
-        nearest = self.approximator.get_nearest_predicate(nonexistent_state)
+        nearest = self.approximator.get_nearest_state(nonexistent_state)
         self.assertIn(nearest, [self.state0, self.state1])
 
     def test_question1(self):

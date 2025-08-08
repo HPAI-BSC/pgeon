@@ -238,7 +238,8 @@ class TestPolicyRepresentation(unittest.TestCase):
 
         actions = self.representation.get_possible_actions(self.state0)
         self.assertEqual(len(actions), 1)
-        self.assertIn(self.action0, actions)
+        self.assertEqual(actions[0][0], self.action0)
+        self.assertEqual(actions[0][1], 1.0)
 
         nonexistent_state = PredicateBasedStateRepresentation(
             (Predicate(State.ZERO), Predicate(State.ONE))
@@ -247,11 +248,23 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertEqual(len(actions), 0)
 
         # Test with multiple actions
-        self.representation.add_transition(self.state0, self.state2, 1)
+        self.representation.add_transition(self.state0, self.state2, 1, probability=0.5)
+        self.representation.add_transition(
+            self.state0, self.state3, self.action0, probability=0.5
+        )
         actions = self.representation.get_possible_actions(self.state0)
         self.assertEqual(len(actions), 2)
-        self.assertIn(self.action0, actions)
-        self.assertIn(1, actions)
+
+        # The order of actions is not guaranteed, so we check for both possibilities
+        if actions[0][0] == self.action0:
+            self.assertEqual(actions[0][1], 1.5)
+            self.assertEqual(actions[1][0], 1)
+            self.assertEqual(actions[1][1], 0.5)
+        else:
+            self.assertEqual(actions[0][0], 1)
+            self.assertEqual(actions[0][1], 0.5)
+            self.assertEqual(actions[1][0], self.action0)
+            self.assertEqual(actions[1][1], 1.5)
 
     def test_get_possible_next_states(self):
         """Test getting possible next states from a state."""
@@ -465,6 +478,17 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.representation.add_transitions_from(
             transitions, frequency=1, probability=1.0
         )
+
+    def test_get_possible_actions_single_transition(self):
+        """Test getting possible actions from a state with a single transition."""
+        self.representation.add_states_from([self.state0, self.state1])
+        self.representation.add_transition(
+            self.state0, self.state1, self.action0, frequency=1, probability=1.0
+        )
+        actions = self.representation.get_possible_actions(self.state0)
+        self.assertEqual(len(actions), 1)
+        self.assertEqual(actions[0][0], self.action0)
+        self.assertEqual(actions[0][1], 1.0)
 
 
 if __name__ == "__main__":

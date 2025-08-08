@@ -7,9 +7,11 @@ from typing import (
     Collection,
     Dict,
     Iterator,
+    List,
     Optional,
     Tuple,
     cast,
+    defaultdict,
 )
 
 import networkx as nx
@@ -59,7 +61,9 @@ class PolicyRepresentation(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_possible_actions(self, state: StateRepresentation) -> Collection[Action]:
+    def get_possible_actions(
+        self, state: StateRepresentation
+    ) -> List[Tuple[Action, float]]:
         """Get all possible actions from a state."""
         ...
 
@@ -346,6 +350,7 @@ class GraphRepresentation(PolicyRepresentation):
         super().__init__()
         # p(s) and p(s',a | s)
         self.graph: GraphRepresentation.Graph
+        self.discretizer: Discretizer
         if graph_backend == "networkx":
             self.graph = GraphRepresentation.NetworkXGraph()
         else:
@@ -357,15 +362,23 @@ class GraphRepresentation(PolicyRepresentation):
         ...
 
     # Implementation of PolicyRepresentation interface using graph terminology
-    def get_possible_actions(self, state: StateRepresentation) -> Collection[Action]:
-        """Get all possible actions from a state."""
+    def get_possible_actions(
+        self, state: StateRepresentation
+    ) -> List[Tuple[Action, float]]:
+        """Get all possible actions from a state with their probabilities."""
         if not self.has_state(state):
             return []
-        actions = set()
+
+        # In cases where there are multiple edges for the same action from a state,
+        # we need to sum their probabilities.
+        action_probabilities = defaultdict(float)
         for _, _, data in self.graph.out_edges(state, data=True):
-            if "action" in data:
-                actions.add(data["action"])
-        return list(actions)
+            if "action" in data and "probability" in data:
+                action_probabilities[data["action"]] += data["probability"]
+
+        return sorted(
+            action_probabilities.items(), key=lambda item: item[1], reverse=True
+        )
 
     def get_possible_next_states(
         self, state: StateRepresentation, action: Optional[Action] = None
