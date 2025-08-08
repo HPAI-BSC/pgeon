@@ -403,7 +403,7 @@ class IntentionAwarePolicyGraph(
         else:
             node = s
         edges_with_probs = [
-            (data["action"], dest, data["prob"])
+            (data["action"], dest, data["probability"])
             for orig, dest, data in self.policy_representation.graph.out_edges(
                 node, data=True
             )
@@ -462,7 +462,7 @@ class IntentionAwarePolicyGraph(
         # Assuming the 's' is always in predicates format for simplicity
         try:
             prob = [
-                data["prob"]
+                data["probability"]
                 for orig, dest, data in self.policy_representation.graph.out_edges(
                     given_s, data=True
                 )
@@ -488,7 +488,7 @@ class IntentionAwarePolicyGraph(
         # Assuming the 's' is always in predicates format for simplicity
         try:
             prob = [
-                data["prob"]
+                data["probability"]
                 for orig, dest, data in self.policy_representation.graph.out_edges(
                     given_s, data=True
                 )
@@ -512,7 +512,7 @@ class IntentionAwarePolicyGraph(
             return 0
         else:
             prob = [
-                data["prob"]
+                data["probability"]
                 for orig, dest, data in self.policy_representation.graph.out_edges(
                     given_s, data=True
                 )
@@ -536,7 +536,7 @@ class IntentionAwarePolicyGraph(
 
     def _prob_s_prima_given_s(self, s_prima: StateID, given_s: StateID):
         prob = [
-            data["prob"]
+            data["probability"]
             for orig, dest, data in self.policy_representation.graph.out_edges(
                 given_s, data=True
             )

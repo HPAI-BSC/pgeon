@@ -84,65 +84,25 @@ class TestPolicyApproximator(unittest.TestCase):
             from_state, to_state, data = transition
             if isinstance(data, dict) and "frequency" in data:
                 self.assertGreater(data["frequency"], 0)
-                self.assertIn("prob", data)
-                self.assertGreater(data["prob"], 0)
-                self.assertLessEqual(data["prob"], 1.0)
+                self.assertIn("probability", data)
+                self.assertGreater(data["probability"], 0)
+                self.assertLessEqual(data["probability"], 1.0)
                 if from_state == self.state0:
                     self.assertEqual(to_state, self.state1)
                     self.assertEqual(data["action"], self.action0)
-                    self.assertEqual(data["prob"], 1.0)
+                    self.assertEqual(data["probability"], 1.0)
                 elif from_state == self.state1:
                     self.assertEqual(to_state, self.state2)
                     self.assertEqual(data["action"], self.action0)
-                    self.assertEqual(data["prob"], 1.0)
+                    self.assertEqual(data["probability"], 1.0)
                 elif from_state == self.state2:
                     self.assertEqual(to_state, self.state3)
                     self.assertEqual(data["action"], self.action0)
-                    self.assertEqual(data["prob"], 1.0)
+                    self.assertEqual(data["probability"], 1.0)
                 elif from_state == self.state3:
                     self.assertEqual(to_state, self.state0)
                     self.assertEqual(data["action"], self.action0)
-                    self.assertEqual(data["prob"], 1.0)
-
-    def test_get_possible_actions(self):
-        self.approximator.fit(n_episodes=1)
-
-        possible_actions = self.approximator.get_possible_actions(self.state0)
-        self.assertEqual(len(possible_actions), 1)
-
-        action, prob = possible_actions[0]
-        self.assertEqual(action, 0)
-        self.assertEqual(prob, 1.0)
-
-        nonexistent_state = PredicateBasedStateRepresentation(
-            (Predicate(State.ZERO), Predicate(State.ONE))
-        )
-        possible_actions = self.approximator.get_possible_actions(nonexistent_state)
-        self.assertEqual(len(possible_actions), 1)
-        self.assertEqual(possible_actions[0][0], 0)
-        self.assertEqual(possible_actions[0][1], 1.0)
-
-        # Test with multiple possible actions
-        self.representation.clear()
-        self.representation.add_states_from([self.state0, self.state1, self.state2])
-        self.representation.add_transition(
-            self.state0, self.state1, self.action0, prob=0.5, frequency=1
-        )
-        self.representation.add_transition(
-            self.state0, self.state2, self.action1, prob=0.5, frequency=1
-        )
-        possible_actions = self.approximator.get_possible_actions(self.state0)
-        self.assertEqual(len(possible_actions), 2)
-        self.assertEqual(possible_actions[0][0], 0)
-        self.assertEqual(possible_actions[0][1], 0.5)
-        self.assertEqual(possible_actions[1][0], 1)
-        self.assertEqual(possible_actions[1][1], 0.5)
-
-        # Test with no possible actions
-        self.representation.clear()
-        self.representation.add_state(self.state0)
-        possible_actions = self.approximator.get_possible_actions(self.state0)
-        self.assertEqual(len(possible_actions), 0)
+                    self.assertEqual(data["probability"], 1.0)
 
     def test_get_nearest_state(self):
         self.approximator.fit(n_episodes=1)
@@ -176,10 +136,10 @@ class TestPolicyApproximator(unittest.TestCase):
         self.representation.clear()
         self.representation.add_states_from([self.state0, self.state1, self.state2])
         self.representation.add_transition(
-            self.state0, self.state1, self.action0, prob=0.5, frequency=1
+            self.state0, self.state1, self.action0, probability=0.5, frequency=1
         )
         self.representation.add_transition(
-            self.state0, self.state2, 1, prob=0.5, frequency=1
+            self.state0, self.state2, self.action1, probability=0.5, frequency=1
         )
         result = self.approximator.question1(self.state0)
         self.assertEqual(len(result), 2)
@@ -208,13 +168,13 @@ class TestPolicyApproximator(unittest.TestCase):
         self.representation.clear()
         self.representation.add_states_from([self.state0, self.state1, self.state2])
         self.representation.add_transition(
-            self.state0, self.state1, self.action0, prob=1.0, frequency=1
+            self.state0, self.state1, self.action0, probability=1.0, frequency=1
         )
         self.representation.add_transition(
-            self.state1, self.state2, 1, prob=1.0, frequency=1
+            self.state1, self.state2, 1, probability=1.0, frequency=1
         )
         self.representation.add_transition(
-            self.state2, self.state0, self.action0, prob=1.0, frequency=1
+            self.state2, self.state0, self.action0, probability=1.0, frequency=1
         )
         best_nodes = self.approximator.question2(self.action0)
         self.assertEqual(len(best_nodes), 2)
@@ -231,13 +191,13 @@ class TestPolicyApproximator(unittest.TestCase):
         self.representation.clear()
         self.representation.add_states_from([self.state0, self.state1, self.state2])
         self.representation.add_transition(
-            self.state0, self.state1, self.action0, prob=1.0, frequency=1
+            self.state0, self.state1, self.action0, probability=1.0, frequency=1
         )
         self.representation.add_transition(
-            self.state1, self.state2, 1, prob=1.0, frequency=1
+            self.state1, self.state2, 1, probability=1.0, frequency=1
         )
         self.representation.add_transition(
-            self.state2, self.state0, self.action0, prob=1.0, frequency=1
+            self.state2, self.state0, self.action0, probability=1.0, frequency=1
         )
         explanations = self.approximator.question3(self.state1, self.action0)
         self.assertEqual(len(explanations), 0)

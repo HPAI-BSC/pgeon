@@ -103,7 +103,7 @@ class PolicyApproximator(abc.ABC):
                                 state, dest_state, key=action
                             )
                             if edge_data:
-                                edge_data["prob"] = (
+                                edge_data["probability"] = (
                                     edge_data.get("frequency", 0) / total_frequency
                                 )
 
@@ -325,27 +325,6 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
                 print("\tNEAREST PREDICATE in representation:", nearest_predicate)
             return nearest_predicate
 
-    def get_possible_actions(
-        self, state: StateRepresentation
-    ) -> List[Tuple[Any, float]]:
-        """Given a state, get the possible actions and it's probabilities
-        This method forwards the call to the underlying policy representation.
-        :param state: Existing state
-        :return: Action probabilities of a given state
-        """
-        if not self.policy_representation.has_state(state):
-            nearest_state = self.get_nearest_state(state)
-            if nearest_state is None:
-                all_actions = self.discretizer.all_actions()
-                if not all_actions:
-                    return []
-                prob = 1 / len(all_actions)
-                return [(action, prob) for action in all_actions]
-
-            state = nearest_state
-
-        return self.policy_representation.get_possible_actions(state)
-
     def question1(
         self,
         state: StateRepresentation,
@@ -357,7 +336,14 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         :param verbose: Whether to print verbose output
         :return: List of (action, probability) tuples
         """
-        possible_actions = self.get_possible_actions(state)
+        nearest_state = self.get_nearest_state(state, verbose=verbose)
+        if nearest_state is None:
+            return []
+
+        possible_actions = self.policy_representation.get_possible_actions(
+            nearest_state
+        )
+
         if verbose:
             print("I will take one of these actions:")
             for action, prob in possible_actions:
@@ -408,8 +394,12 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
             for edge in edges:
                 if len(edge) >= 3:  # Check if we have data
                     u, _, data = edge
-                    if isinstance(data, dict) and "action" in data and "prob" in data:
-                        best_actions.append((u, data["action"], data["prob"]))
+                    if (
+                        isinstance(data, dict)
+                        and "action" in data
+                        and "probability" in data
+                    ):
+                        best_actions.append((u, data["action"], data["probability"]))
 
             if best_actions:
                 best_actions.sort(key=lambda x: x[2], reverse=True)
@@ -538,7 +528,9 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         cast_predicate = cast(StateRepresentation, predicate)
         if greedy:
             nearest_predicate = self.get_nearest_state(cast_predicate, verbose=verbose)
-            possible_actions = self.get_possible_actions(nearest_predicate)
+            possible_actions = self.policy_representation.get_possible_actions(
+                nearest_predicate
+            )
 
             # Possible actions always will have 1 element since for each state we only save the best action
             if possible_actions:
@@ -546,7 +538,9 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
             return None
         else:
             nearest_predicate = self.get_nearest_state(cast_predicate, verbose=verbose)
-            possible_actions = self.get_possible_actions(nearest_predicate)
+            possible_actions = self.policy_representation.get_possible_actions(
+                nearest_predicate
+            )
             if possible_actions:
                 possible_actions = sorted(possible_actions, key=lambda x: x[1])
                 return possible_actions[-1][0]
@@ -585,13 +579,17 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
         # Determine best action based on mode
         if mode == PGBasedPolicyMode.GREEDY:
-            possible_actions = self.get_possible_actions(predicate)
+            possible_actions = self.policy_representation.get_possible_actions(
+                predicate
+            )
             if possible_actions:
                 best_action = possible_actions[0][0]
             else:
                 best_action = None
         else:
-            possible_actions = self.get_possible_actions(predicate)
+            possible_actions = self.policy_representation.get_possible_actions(
+                predicate
+            )
             if possible_actions:
                 actions, probs = zip(*possible_actions)
                 best_action = np.random.choice(actions, p=probs)
