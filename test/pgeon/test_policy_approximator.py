@@ -79,7 +79,7 @@ class TestPolicyApproximator(unittest.TestCase):
             self.representation.has_transition(self.state3, self.state0, self.action0)
         )
 
-        transitions = self.representation.get_all_transitions(include_data=True)
+        transitions = self.representation.get_all_transitions()
         for transition in transitions:
             from_state, to_state, data = transition
             transition_obj = Transition.model_validate(data)

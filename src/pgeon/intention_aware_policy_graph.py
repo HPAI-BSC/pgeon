@@ -1,7 +1,7 @@
 import abc
 import warnings
 from dataclasses import asdict, dataclass
-from typing import Dict, Iterable, List, Optional, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import gymnasium as gym
 import numpy as np
@@ -10,9 +10,11 @@ from tqdm import tqdm
 from pgeon.agent import Agent
 from pgeon.desire import Desire, Goal
 from pgeon.discretizer import (
+    Action,
     Discretizer,
     Predicate,
     PredicateBasedStateRepresentation,
+    StateRepresentation,
     Transition,
 )
 from pgeon.policy_approximator import (
@@ -20,26 +22,20 @@ from pgeon.policy_approximator import (
 )
 from pgeon.policy_representation import PolicyRepresentation
 
-ActionID = str
-StateID = PredicateBasedStateRepresentation
-State = StateID
 HowTrace = List[
-    Tuple[ActionID, State, float]
+    Tuple[Action, StateRepresentation, float]
 ]  # Doing action, arriving at state, which has intention
 WhyTrace = Dict[str, float | str]
 
 
-# TODO: Check this typing everywhere, tests are still passing
-
-
 @dataclass
 class ProbQuery:
-    s: Optional[StateID] = None
-    a: Optional[ActionID] = None
-    s_prima: Optional[StateID] = None
-    given_s: Optional[StateID] = None
-    given_a: Optional[ActionID] = None
-    given_do_a: Optional[ActionID] = None
+    s: Optional[StateRepresentation] = None
+    a: Optional[Action] = None
+    s_prima: Optional[StateRepresentation] = None
+    given_s: Optional[StateRepresentation] = None
+    given_a: Optional[Action] = None
+    given_do_a: Optional[Action] = None
 
     def __post_init__(self):
         # CURRENT ACCEPTABLE USAGES #
@@ -49,12 +45,12 @@ class ProbQuery:
     @classmethod
     def validate(
         cls,
-        s: StateID = None,
-        a: ActionID = None,
-        s_prima: StateID = None,
-        given_s: StateID = None,
-        given_a: ActionID = None,
-        given_do_a: ActionID = None,
+        s: StateRepresentation = None,
+        a: Action = None,
+        s_prima: StateRepresentation = None,
+        given_s: StateRepresentation = None,
+        given_a: Action = None,
+        given_do_a: Action = None,
     ):
         assert any(
             [var is not None for var in [s, a, s_prima, given_s, given_a, given_do_a]]
@@ -179,7 +175,7 @@ class AbstractIntentionAwarePolicyGraph(abc.ABC):
         return attributed_intention_probabilities, expected_intentions
 
     @abc.abstractmethod
-    def stateID_to_node(self, s: StateID) -> StateID:
+    def stateID_to_node(self, s: StateRepresentation) -> StateRepresentation:
         pass
 
     @abc.abstractmethod
@@ -189,50 +185,60 @@ class AbstractIntentionAwarePolicyGraph(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def get_possible_actions(self, s: StateID) -> List[ActionID]:
+    def get_possible_actions(self, s: StateRepresentation) -> List[Action]:
         pass
 
     @abc.abstractmethod
-    def get_possible_s_prima(self, s: StateID, a: ActionID = None) -> List[StateID]:
+    def get_possible_s_prima(
+        self, s: StateRepresentation, a: Action = None
+    ) -> List[StateRepresentation]:
         raise NotImplemented
 
     @abc.abstractmethod
-    def get_all_state_ids(self) -> Iterable[StateID]:
+    def get_all_state_ids(self) -> Iterable[StateRepresentation]:
         pass
 
     @abc.abstractmethod
-    def _prob_s(self, s: StateID) -> float:
+    def _prob_s(self, s: StateRepresentation) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
     def _prob_s_prima_a_given_s(
-        self, s_prima: StateID, a: ActionID, given_s: StateID
+        self, s_prima: StateRepresentation, a: Action, given_s: StateRepresentation
     ) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _prob_a_given_s(self, a: ActionID, given_s: StateID) -> float:
+    def _prob_a_given_s(self, a: Action, given_s: StateRepresentation) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
     def _prob_s_prima_given_a_s(
-        self, s_prima: StateID, given_a: ActionID, given_s: StateID
+        self,
+        s_prima: StateRepresentation,
+        given_a: Action,
+        given_s: StateRepresentation,
     ) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
     def _prob_s_prima_given_do_a_given_s(
-        self, s_prima: StateID, given_do_a: ActionID, given_s: StateID
+        self,
+        s_prima: StateRepresentation,
+        given_do_a: Action,
+        given_s: StateRepresentation,
     ) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _prob_s_prima_given_s(self, s_prima: StateID, given_s: StateID) -> float:
+    def _prob_s_prima_given_s(
+        self, s_prima: StateRepresentation, given_s: StateRepresentation
+    ) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
     def propagate_intention(
-        self, node: StateID, desire: Desire, p: float, stop_criterion: float
+        self, node: StateRepresentation, desire: Desire, p: float, stop_criterion: float
     ):
         pass
 
@@ -273,29 +279,10 @@ class IntentionAwarePolicyGraph(
         else:
             return unknown_dict.get("probability", 0)
 
-    def get_action_probability(self, node: Set[Predicate], action_id: int):
-        try:
-            destinations = self.policy_representation.get_possible_next_states(node)
-            return sum(
-                [
-                    self.get_prob(
-                        self.policy_representation.get_transition_data(
-                            node, destination, action_id
-                        )
-                    )
-                    for destination in destinations
-                ]
-            )
-        except KeyError:
-            print(
-                f"Warning: State {node} has no sampled successors which were asked for"
-            )
-            return 0
-
     def register_desire(self, desire: Desire, stop_criterion=1e-4):
         self.registered_desires.append(desire)
         for node in self.policy_representation.get_all_states():
-            node_data = self.policy_representation.graph.get_node(node)
+            node_data = self.policy_representation.get_state_data(node)
             if "intention" not in node_data:
                 node_data["intention"] = {}
             node_data["intention"][desire] = 0.0
@@ -305,9 +292,9 @@ class IntentionAwarePolicyGraph(
             if p > 0:
                 self.propagate_intention(node, desire, p, stop_criterion)
 
-    def get_possible_actions(self, s: StateID) -> List[ActionID]:
+    def get_possible_actions(self, s: StateRepresentation) -> List[Action]:
         # Returns any a s.t. P(a|s)>0
-        if type(s) == int:
+        if isinstance(s, int):
             # TODO: Legacy: to be removed
             s_node = self.stateID_to_node(s)
             s_transitions = self.policy_representation.get_transitions_from_state(
@@ -317,17 +304,19 @@ class IntentionAwarePolicyGraph(
         else:
             return list(self.policy_representation.get_transitions_from_state(s).keys())
 
-    def get_possible_s_prima(self, s: StateID, a: ActionID = None) -> List[StateID]:
+    def get_possible_s_prima(
+        self, s: StateRepresentation, a: Action = None
+    ) -> List[StateRepresentation]:
         # Returns any a s.t. P(a|s)>0
-        if type(s) == int:
+        if isinstance(s, int):
             # TODO: Legacy: to be removed
             node = self.stateID_to_node(s)
         else:
             node = s
         edges_with_probs = [
             (data["action"], dest, data["probability"])
-            for orig, dest, data in self.policy_representation.graph.out_edges(
-                node, data=True
+            for orig, dest, data in self.policy_representation.get_outgoing_transitions(
+                node
             )
         ]
         # TODO: Check on this
@@ -343,8 +332,8 @@ class IntentionAwarePolicyGraph(
             destinies = list(set([dest for act, dest, p in edges_with_probs if p > 0]))
         return destinies
 
-    def get_all_state_ids(self) -> Iterable[StateID]:
-        return self.policy_representation.graph.nodes()
+    def get_all_state_ids(self) -> Iterable[StateRepresentation]:
+        return self.policy_representation.get_all_states()
 
     def check_desire(
         self, node: PredicateBasedStateRepresentation, desire: Desire
@@ -358,38 +347,40 @@ class IntentionAwarePolicyGraph(
             return 1.0
         return 0.0
 
-    def get_intention(self, s: StateID, desire: Desire):
+    def get_intention(self, s: StateRepresentation, desire: Desire):
         try:
-            node_data = self.policy_representation.graph.get_node(s)
+            node_data = self.policy_representation.get_state_data(s)
             if "intention" in node_data and desire in node_data["intention"]:
                 return node_data["intention"][desire]
             return 0
         except KeyError:
             return 0
 
-    def get_intentions(self, s: StateID) -> Dict[Desire, float]:
+    def get_intentions(self, s: StateRepresentation) -> Dict[Desire, float]:
         try:
-            return self.policy_representation.graph.get_node(s)["intention"]
+            return self.policy_representation.get_state_data(s)["intention"]
         except KeyError:
             return dict()
 
     def _set_intention(self, s, desire, new_int):
         try:
-            self.policy_representation.graph.get_node(s)["intention"][desire] = new_int
+            self.policy_representation.get_state_data(s)["intention"][desire] = new_int
         except KeyError:
-            self.policy_representation.graph.get_node(s)["intention"] = dict()
-            self.policy_representation.graph.get_node(s)["intention"][desire] = new_int
+            self.policy_representation.get_state_data(s)["intention"] = dict()
+            self.policy_representation.get_state_data(s)["intention"][desire] = new_int
 
-    def _prob_s(self, s: StateID):
-        return self.policy_representation.graph.get_node(s).probability
+    def _prob_s(self, s: StateRepresentation):
+        return self.policy_representation.get_state_data(s).probability
 
-    def _prob_s_prima_a_given_s(self, s_prima: StateID, a: ActionID, given_s: StateID):
+    def _prob_s_prima_a_given_s(
+        self, s_prima: StateRepresentation, a: Action, given_s: StateRepresentation
+    ):
         # Assuming the 's' is always in predicates format for simplicity
         try:
             prob = [
                 Transition.model_validate(data).probability
-                for orig, dest, data in self.policy_representation.graph.out_edges(
-                    given_s, data=True
+                for _, _, data in self.policy_representation.get_outgoing_transitions(
+                    given_s
                 )
                 if a == Transition.model_validate(data).action and dest == s_prima
             ]
@@ -397,7 +388,7 @@ class IntentionAwarePolicyGraph(
                 raise AssertionError(
                     f"More than one possible edge in query considering "
                     f"{s_prima},{a}|{given_s}:\n"
-                    f"{self.policy_representation.graph.out_edges(given_s, data=True)}"
+                    f"{self.policy_representation.get_outgoing_transitions(given_s)}"
                 )
             if len(prob) == 0:
                 warnings.warn(
@@ -409,13 +400,13 @@ class IntentionAwarePolicyGraph(
         except KeyError:
             return 0
 
-    def _prob_a_given_s(self, a: ActionID, given_s: StateID):
+    def _prob_a_given_s(self, a: Action, given_s: StateRepresentation):
         # Assuming the 's' is always in predicates format for simplicity
         try:
             prob = [
                 Transition.model_validate(data).probability
-                for orig, dest, data in self.policy_representation.graph.out_edges(
-                    given_s, data=True
+                for _, _, data in self.policy_representation.get_outgoing_transitions(
+                    given_s
                 )
                 if a == Transition.model_validate(data).action
             ]
@@ -429,52 +420,41 @@ class IntentionAwarePolicyGraph(
         except KeyError:
             return 0
 
-    def _prob_s_prima_given_a_s(
-        self, s_prima: StateID, given_a: ActionID, given_s: StateID
-    ):
-        p_a__s = self._prob_a_given_s(given_a, given_s)
-        if p_a__s == 0:
-            return 0
-        else:
-            prob = [
-                Transition.model_validate(data).probability
-                for orig, dest, data in self.policy_representation.graph.out_edges(
-                    given_s, data=True
-                )
-                if given_a == Transition.model_validate(data).action and dest == s_prima
-            ]
-            if len(prob) > 1:
-                raise AssertionError(
-                    f"More than one possible edge in query considering "
-                    f"{s_prima}|{given_a},{given_s}:\n"
-                    f"{self.policy_representation.graph.out_edges(given_s, data=True)}"
-                )
-            elif len(prob) == 0:
-                return 0
-            else:
-                return prob[0] / p_a__s
+    def _prob_s_prima_given_a_s(self, s_prima, given_a, given_s):
+        """p(s'|a,s)"""
+        transitions = self.policy_representation.get_outgoing_transitions(given_s)
+        prob = [
+            Transition.model_validate(data).probability
+            for _, dest, data in transitions
+            if given_a == Transition.model_validate(data).action and dest == s_prima
+        ]
+        return sum(prob)
 
     def _prob_s_prima_given_do_a_given_s(
-        self, s_prima: StateID, given_do_a: ActionID, given_s: StateID
+        self,
+        s_prima: StateRepresentation,
+        given_do_a: Action,
+        given_s: StateRepresentation,
     ):
         raise NotImplementedError("Basic PG can't handle do(a)")
 
-    def _prob_s_prima_given_s(self, s_prima: StateID, given_s: StateID):
+    def _prob_s_prima_given_s(self, s_prima, given_s):
+        """p(s'|s)"""
+        # TODO: this needs to be marginalized over actions
+        transitions = self.policy_representation.get_outgoing_transitions(given_s)
         prob = [
             Transition.model_validate(data).probability
-            for orig, dest, data in self.policy_representation.graph.out_edges(
-                given_s, data=True
-            )
+            for _, dest, data in transitions
             if dest == s_prima
         ]
         return sum(prob)
 
-    def stateID_to_node(self, s: StateID) -> StateID:
-        return self.policy_representation.graph.get_node(s)
+    def stateID_to_node(self, s: StateRepresentation) -> dict[str, Any]:
+        return self.policy_representation.get_state_data(s)
 
     def propagate_intention(
         self,
-        node: StateID,
+        node: StateRepresentation,
         desire: Desire,
         propagated_intention: float,
         stop_criterion: float,
@@ -498,18 +478,18 @@ class IntentionAwarePolicyGraph(
                     )
 
     def _update_intention(self, node, desire, intention):
-        graph_node = self.policy_representation.graph.get_node(node)
+        graph_node = self.policy_representation.get_state_data(node)
         current_intention_val = graph_node["intention"].get(desire, 0.0)
         graph_node["intention"][desire] = current_intention_val + intention
 
-    def get_action_probability(self, state: StateID) -> Dict[ActionID, float]:
+    def get_action_probability(self, state: StateRepresentation) -> Dict[Action, float]:
         # TODO: This should go in the representation parent class
         return {
             a: self.prob(ProbQuery(a=a, given_s=state))
             for a in self.get_possible_actions(state)
         }
 
-    def answer_what(self, state: State) -> List[Tuple[Goal, float]]:
+    def answer_what(self, state: StateRepresentation) -> List[Tuple[Goal, float]]:
         """Answers the question: What are the intentions in a given state?"""
         intentions = self.policy_representation.get_state_attributes("intention")
         if state in intentions:
@@ -518,7 +498,7 @@ class IntentionAwarePolicyGraph(
 
     def answer_how(
         self,
-        state: State,
+        state: StateRepresentation,
         desires: List[Desire],
     ) -> Dict[Desire, HowTrace]:
         """Answers the question: How to achieve a desire from a given state?"""
@@ -560,8 +540,8 @@ class IntentionAwarePolicyGraph(
 
     def answer_why(
         self,
-        state: State,
-        action: ActionID,
+        state: StateRepresentation,
+        action: Action,
         minimum_probability_of_increase: float = 0,
     ) -> Dict[Desire, WhyTrace]:
         """Answers the question: Why was an action taken in a given state?"""

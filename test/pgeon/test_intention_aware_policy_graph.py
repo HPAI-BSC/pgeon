@@ -9,7 +9,6 @@ from pgeon.intention_aware_policy_graph import IntentionAwarePolicyGraph
 from pgeon.policy_representation import Action, GraphRepresentation
 
 # action_idx_to_name = {'0': 'UP', '1': 'DOWN', '2': 'RIGHT', '3': 'LEFT', '4': 'STAY', '5': 'Interact'}
-action_name_to_idx = {"Interact": "5"}
 
 
 class TestIntentionAwarePolicyGraph(unittest.TestCase):

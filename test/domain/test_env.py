@@ -46,25 +46,13 @@ class TestingEnv(gymnasium.Env):
         return self.state, 1, self.steps >= 30, self.steps >= 30, {}
 
 
-class TestingAgent(Agent):
-    def __init__(self): ...
-
-    def act(self, _):
-        return 0
-
-
 class TestingDiscretizer(Discretizer):
-    def __init__(self):
-        super(TestingDiscretizer, self).__init__()
-
     def discretize(self, state: np.ndarray) -> Tuple[Predicate]:
         correct_predicate = [State.ZERO, State.ONE, State.TWO, State.THREE][state[0]]
         return (Predicate(correct_predicate),)
 
     def all_actions(self):
         return [0]
-
-    def get_predicate_space(self) -> List[Tuple[Predicate, ...]]: ...
 
     def nearest_state(self, state):
         while True:
@@ -73,8 +61,16 @@ class TestingDiscretizer(Discretizer):
                 Predicate([State.ZERO, State.ONE, State.TWO, State.THREE][value % 4]),
             )
 
+    def get_predicate_space(self) -> List[Tuple[Predicate, ...]]:
+        return (State,)
+
     def state_to_str(self, state):
         return state.predicates[0].value.name
 
     def str_to_state(self, state_str):
         return PredicateBasedStateRepresentation((Predicate(State[state_str]),))
+
+
+class TestingAgent(Agent):
+    def act(self, _):
+        return 0

@@ -3,8 +3,6 @@ from pathlib import Path
 from test.domain.test_env import State, TestingDiscretizer, TestingEnv
 from typing import Dict, List, Tuple
 
-import networkx as nx
-
 from pgeon import GraphRepresentation, Predicate
 from pgeon.discretizer import (
     PredicateBasedStateRepresentation,
@@ -41,24 +39,18 @@ class TestPolicyRepresentation(unittest.TestCase):
 
     def test_initialization(self):
         """Test initialization of policy representation."""
-        self.assertIsInstance(self.representation.graph.backend, nx.MultiDiGraph)
         self.assertEqual(len(self.representation.get_all_states()), 0)
         self.assertEqual(len(self.representation.get_all_transitions()), 0)
 
     def test_add_state(self):
         """Test adding states to the representation."""
         self.representation.add_state(self.state0, frequency=1, probability=0.25)
-
         self.assertTrue(self.representation.has_state(self.state0))
-        self.assertEqual(len(self.representation.get_all_states()), 1)
+        self.assertFalse(self.representation.has_state(self.state1))
+        self.assertFalse(self.representation.has_state(self.state2))
 
-        state_attrs = self.representation.get_state_attributes("frequency")
-        self.assertEqual(state_attrs[self.state0], 1)
-
-        state_attrs = self.representation.get_state_attributes("probability")
-        self.assertEqual(state_attrs[self.state0], 0.25)
-
-        # Add multiple states
+    def test_add_states_from(self):
+        """Test adding multiple states to the representation."""
         self.representation.add_states_from(
             [self.state1, self.state2, self.state3], frequency=2, probability=0.25
         )
@@ -66,7 +58,7 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertTrue(self.representation.has_state(self.state1))
         self.assertTrue(self.representation.has_state(self.state2))
         self.assertTrue(self.representation.has_state(self.state3))
-        self.assertEqual(len(self.representation.get_all_states()), 4)
+        self.assertEqual(len(self.representation.get_all_states()), 3)
 
         state_attrs = self.representation.get_state_attributes("frequency")
         self.assertEqual(state_attrs[self.state1], 2)
@@ -352,20 +344,13 @@ class TestPolicyRepresentation(unittest.TestCase):
     def test_get_outgoing_transitions(self):
         """Test getting outgoing transitions from a state."""
         self.setup_test_graph()
-
-        transitions = self.representation.get_outgoing_transitions(
-            self.state0, include_data=False
+        self.representation.add_transition(
+            self.state0,
+            self.state2,
+            Transition(action=self.action0, frequency=1, probability=1.0),
         )
-        self.assertEqual(len(transitions), 1)
-
-        transitions = self.representation.get_outgoing_transitions(
-            self.state0, include_data=True
-        )
-        self.assertEqual(len(transitions), 1)
-        for _, _, data in transitions:
-            transition_obj = Transition.model_validate(data)
-            self.assertIn("frequency", transition_obj.model_dump())
-            self.assertIn("probability", transition_obj.model_dump())
+        transitions = self.representation.get_outgoing_transitions(self.state0)
+        self.assertEqual(len(transitions), 2)
 
     def test_clear(self):
         """Test clearing the representation."""

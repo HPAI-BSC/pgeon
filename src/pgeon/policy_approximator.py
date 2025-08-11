@@ -21,6 +21,7 @@ from pgeon.agent import Agent
 from pgeon.discretizer import (
     Action,
     Discretizer,
+    Predicate,
     PredicateBasedStateRepresentation,
     StateRepresentation,
     Transition,
@@ -32,13 +33,53 @@ class Desire: ...
 
 
 class PolicyApproximator(abc.ABC):
+    """Abstract base class for policy approximators."""
+
     def __init__(
-        self, discretizer: Discretizer, policy_representation: PolicyRepresentation
+        self,
+        discretizer: Discretizer,
+        policy_representation: PolicyRepresentation,
     ):
-        self.discretizer: Discretizer = discretizer
-        self.policy_representation: PolicyRepresentation = policy_representation
+        self.discretizer = discretizer
+        self.policy_representation = policy_representation
         self._is_fit = False
         self._trajectories_of_last_fit: List[List[Any]] = []
+
+    def get_nearest_state(
+        self, state: StateRepresentation, verbose: bool = False
+    ) -> Optional[StateRepresentation]:
+        """Get the nearest state in the policy representation to a given state."""
+        if self.policy_representation.has_state(state):
+            return state
+
+        if isinstance(state, int):
+            predicate_enum = self.discretizer.get_predicate_space()[0]
+            state = PredicateBasedStateRepresentation(
+                (Predicate(predicate_enum(state)),)
+            )
+
+        input_preds = state.predicates
+        all_states = self.policy_representation.get_all_states()
+        if not all_states:
+            return None
+
+        max_similarity = -1
+        nearest_predicate = None
+
+        for s in all_states:
+            state_preds = s.predicates if hasattr(s, "predicates") else s
+
+            similarity = 0
+            for p1, p2 in zip(input_preds, state_preds):
+                if p1 == p2:
+                    similarity += 1
+            if similarity > max_similarity:
+                max_similarity = similarity
+                nearest_predicate = s
+
+        if verbose:
+            print("\tNEAREST PREDICATE in representation:", nearest_predicate)
+        return nearest_predicate
 
     @staticmethod
     def from_pickle(path: str):
@@ -81,39 +122,41 @@ class PolicyApproximator(abc.ABC):
 
     def _normalize(self) -> None:
         weights = self.policy_representation.get_state_attributes("frequency")
-        total_frequency = sum([weights[state] for state in weights])
+        total_frequency = sum(weights.values())
+        if total_frequency == 0:
+            return
+
         self.policy_representation.set_state_attributes(
             {state: weights[state] / total_frequency for state in weights},
             "probability",
         )
 
         for state in self.policy_representation.get_all_states():
-            transitions = self.policy_representation.get_outgoing_transitions(
-                state, include_data=True
-            )
-            total_frequency = sum(
+            transitions = self.policy_representation.get_outgoing_transitions(state)
+            total_transition_frequency = sum(
                 Transition.model_validate(d).frequency for _, _, d in transitions if d
             )
 
-            if total_frequency > 0:
+            if total_transition_frequency > 0:
                 for _, dest_state, d in transitions:
                     action = d.get("action")
                     if action is not None:
-                        # We need to access the graph backend directly to modify the edge data
-                        # as get_transition_data returns a copy
                         edge_data = self.policy_representation.graph.get_edge_data(
                             state, dest_state, key=action
                         )
                         if edge_data:
                             transition = Transition.model_validate(edge_data)
                             transition.probability = (
-                                transition.frequency / total_frequency
+                                transition.frequency / total_transition_frequency
                             )
                             edge_data.update(transition.model_dump())
 
+    # From agent and environment
 
-# From agent and environment
-class OnlinePolicyApproximator(PolicyApproximator): ...
+
+class OnlinePolicyApproximator(PolicyApproximator, abc.ABC):
+    @abc.abstractmethod
+    def fit(self, n_episodes: int) -> None: ...
 
 
 # From trajectories
@@ -215,7 +258,9 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
         return trajectory
 
-    def _update_with_trajectory(self, trajectory: List[Any]) -> None:
+    def _update_with_trajectory(
+        self, trajectory: List[Tuple[StateRepresentation, Action]]
+    ):
         # Only even numbers are states
         states_in_trajectory = [
             trajectory[i] for i in range(len(trajectory)) if i % 2 == 0
@@ -287,55 +332,11 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
         return self
 
-    def get_nearest_state(
-        self,
-        state: StateRepresentation,
-        verbose: bool = False,
-    ) -> Optional[StateRepresentation]:
-        """Returns the nearest predicate on the representation. If already exists, then we return the same predicate. If not,
-        then tries to change the predicate to find a similar state (Maximum change: 1 value).
-        If we don't find a similar state, then we return None
-        :param state: Existent or non-existent predicate in the representation
-        :return: Nearest predicate
-        :param verbose: Prints additional information
-        """
-        if self.policy_representation.has_state(state):
-            if verbose:
-                print("NEAREST PREDICATE of existing predicate:", state)
-            return state
-        else:
-            if verbose:
-                print("NEAREST PREDICATE of NON existing predicate:", state)
-
-            max_similarity = -1
-            nearest_predicate = None
-
-            input_preds = state.predicates
-
-            all_states = self.policy_representation.get_all_states()
-            if not all_states:
-                return None
-
-            for s in all_states:
-                state_preds = s.predicates if hasattr(s, "predicates") else s
-
-                similarity = 0
-                for p1, p2 in zip(input_preds, state_preds):
-                    if p1 == p2:
-                        similarity += 1
-                if similarity > max_similarity:
-                    max_similarity = similarity
-                    nearest_predicate = s
-
-            if verbose:
-                print("\tNEAREST PREDICATE in representation:", nearest_predicate)
-            return nearest_predicate
-
     def question1(
         self,
         state: StateRepresentation,
         verbose: bool = False,
-    ) -> List[Tuple[Any, float]]:
+    ) -> list[tuple[Any, float]]:
         """
         Answers the question: What actions would you take in state X?
         :param state: The state to query
@@ -385,9 +386,7 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         """
         # Nodes where 'action' it's a possible action
         # All the nodes that has the same action (It has repeated nodes)
-        all_transitions = self.policy_representation.get_all_transitions(
-            include_data=True
-        )
+        all_transitions = self.policy_representation.get_all_transitions()
         all_nodes = []
 
         for transition_tuple in all_transitions:
@@ -403,9 +402,7 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         # Nodes where 'action' it's the most probable action
         all_edges = []
         for u in all_nodes:
-            out_edges = self.policy_representation.get_outgoing_transitions(
-                u, include_data=True
-            )
+            out_edges = self.policy_representation.get_outgoing_transitions(u)
             all_edges.append(out_edges)
 
         all_best_actions = []
@@ -506,9 +503,7 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         :return: List of [Action, destination_state, difference]
         """
         cast_state = cast(StateRepresentation, state)
-        out_edges = self.policy_representation.get_outgoing_transitions(
-            cast_state, include_data=True
-        )
+        out_edges = self.policy_representation.get_outgoing_transitions(cast_state)
         outs = []
 
         for edge in out_edges:
