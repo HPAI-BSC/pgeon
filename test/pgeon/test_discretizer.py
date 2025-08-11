@@ -3,8 +3,8 @@ from enum import Enum
 
 from pgeon.discretizer import (
     Predicate,
-    PredicateBasedStateRepresentation,
-    StateRepresentation,
+    PredicateBasedState,
+    State,
     Transition,
 )
 
@@ -91,25 +91,25 @@ class TestPredicateBasedStateRepresentation(unittest.TestCase):
     def setUp(self):
         self.p1 = Predicate(Color.RED)
         self.p2 = Predicate(Shape.SQUARE)
-        self.predicates = (self.p1, self.p2)
+        self.p3 = Predicate(Shape.TRIANGLE)
 
     def test_init(self):
-        s = PredicateBasedStateRepresentation(predicates=self.predicates)
-        self.assertEqual(list(s.predicates), list(self.predicates))
+        s = PredicateBasedState((self.p1, self.p2))
+        self.assertEqual(s.predicates, frozenset((self.p1, self.p2)))
 
     def test_eq_with_same_type(self):
-        s1 = PredicateBasedStateRepresentation(predicates=self.predicates)
-        s2 = PredicateBasedStateRepresentation(predicates=self.predicates)
-        s3 = PredicateBasedStateRepresentation(predicates=(self.p2, self.p1))
-        s4 = PredicateBasedStateRepresentation(predicates=(self.p1,))
+        s1 = PredicateBasedState((self.p1, self.p2))
+        s2 = PredicateBasedState((self.p1, self.p2))
+        s3 = PredicateBasedState((self.p2, self.p1))
+        s4 = PredicateBasedState((self.p1,))
 
         self.assertEqual(s1, s2)
-        self.assertNotEqual(s1, s3)
+        self.assertEqual(s1, s3)
         self.assertNotEqual(s1, s4)
         self.assertNotEqual(s1, "not a state representation")
 
         # Test against a different StateRepresentation implementation
-        class OtherStateRep(StateRepresentation):
+        class OtherStateRep(State):
             def __init__(self, predicates):
                 self.predicates = predicates
 
@@ -119,30 +119,33 @@ class TestPredicateBasedStateRepresentation(unittest.TestCase):
             def __hash__(self):
                 return 0
 
-        other_rep = OtherStateRep(predicates=self.predicates)
+        other_rep = OtherStateRep((self.p1, self.p2))
         self.assertNotEqual(s1, other_rep)
 
     def test_eq_with_tuple(self):
-        s1 = PredicateBasedStateRepresentation(predicates=self.predicates)
+        s1 = PredicateBasedState(predicates=(self.p1, self.p2))
 
-        self.assertEqual(s1, self.predicates)
-        self.assertNotEqual(s1, (self.p2, self.p1))
+        self.assertEqual(s1, (self.p1, self.p2))
+        self.assertEqual(s1, (self.p2, self.p1))
         self.assertNotEqual(s1, (self.p1,))
         self.assertNotEqual(s1, (self.p1, self.p2, self.p1))
 
     def test_hash(self):
-        s1 = PredicateBasedStateRepresentation(predicates=[self.p1, self.p2])
-        s2 = PredicateBasedStateRepresentation(predicates=(self.p1, self.p2))
-        s3 = PredicateBasedStateRepresentation(predicates=(self.p2, self.p1))
+        s1 = PredicateBasedState(predicates=[self.p1, self.p2])
+        s2 = PredicateBasedState(predicates=(self.p1, self.p2))
+        s3 = PredicateBasedState((self.p2, self.p1))
+        s4 = PredicateBasedState((self.p1,))
 
         state_set = {s1}
         self.assertEqual(hash(s1), hash(s2))
-        self.assertNotEqual(hash(s1), hash(s3))
+        self.assertEqual(hash(s1), hash(s3))
+        self.assertNotEqual(hash(s1), hash(s4))
         self.assertIn(s2, state_set)
-        self.assertNotIn(s3, state_set)
+        self.assertIn(s3, state_set)
+        self.assertNotIn(s4, state_set)
 
     def test_frozen(self):
-        s = PredicateBasedStateRepresentation(predicates=[self.p1])
+        s = PredicateBasedState(predicates=[self.p1])
         with self.assertRaises(AttributeError):
             s.predicates = []
 

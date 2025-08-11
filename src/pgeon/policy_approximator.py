@@ -22,8 +22,8 @@ from pgeon.discretizer import (
     Action,
     Discretizer,
     Predicate,
-    PredicateBasedStateRepresentation,
-    StateRepresentation,
+    PredicateBasedState,
+    State,
     Transition,
 )
 from pgeon.policy_representation import GraphRepresentation, PolicyRepresentation
@@ -45,18 +45,14 @@ class PolicyApproximator(abc.ABC):
         self._is_fit = False
         self._trajectories_of_last_fit: List[List[Any]] = []
 
-    def get_nearest_state(
-        self, state: StateRepresentation, verbose: bool = False
-    ) -> Optional[StateRepresentation]:
+    def get_nearest_state(self, state: State, verbose: bool = False) -> Optional[State]:
         """Get the nearest state in the policy representation to a given state."""
         if self.policy_representation.has_state(state):
             return state
 
         if isinstance(state, int):
             predicate_enum = self.discretizer.get_predicate_space()[0]
-            state = PredicateBasedStateRepresentation(
-                (Predicate(predicate_enum(state)),)
-            )
+            state = PredicateBasedState((Predicate(predicate_enum(state)),))
 
         input_preds = state.predicates
         all_states = self.policy_representation.get_all_states()
@@ -258,34 +254,30 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
         return trajectory
 
-    def _update_with_trajectory(
-        self, trajectory: List[Tuple[StateRepresentation, Action]]
-    ):
+    def _update_with_trajectory(self, trajectory: List[Tuple[State, Action]]):
         # Only even numbers are states
         states_in_trajectory = [
             trajectory[i] for i in range(len(trajectory)) if i % 2 == 0
         ]
         all_new_states_in_trajectory = {
-            PredicateBasedStateRepresentation(state)
+            PredicateBasedState(state)
             for state in set(states_in_trajectory)
-            if not self.policy_representation.has_state(
-                PredicateBasedStateRepresentation(state)
-            )
+            if not self.policy_representation.has_state(PredicateBasedState(state))
         }
         self.policy_representation.add_states_from(
             all_new_states_in_trajectory, frequency=0
         )
 
         for state in states_in_trajectory:
-            state_representation = PredicateBasedStateRepresentation(state)
+            state_representation = PredicateBasedState(state)
             node_data = self.policy_representation.graph.get_node(state_representation)
             node_data["frequency"] = node_data.get("frequency", 0) + 1
 
         pointer = 0
         while (pointer + 1) < len(trajectory):
             state_from, action, state_to = trajectory[pointer : pointer + 3]
-            state_from = PredicateBasedStateRepresentation(state_from)
-            state_to = PredicateBasedStateRepresentation(state_to)
+            state_from = PredicateBasedState(state_from)
+            state_to = PredicateBasedState(state_to)
             if not self.policy_representation.has_transition(
                 state_from, state_to, action
             ):
@@ -334,7 +326,7 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
     def question1(
         self,
-        state: StateRepresentation,
+        state: State,
         verbose: bool = False,
     ) -> list[tuple[Any, float]]:
         """
@@ -379,7 +371,7 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
     def get_when_perform_action(
         self, action: Action
-    ) -> Tuple[List[StateRepresentation], List[StateRepresentation]]:
+    ) -> Tuple[List[State], List[State]]:
         """When do you perform action
         :param action: Valid action
         :return: A tuple of (all_states_with_action, states_where_action_is_best)
@@ -424,9 +416,7 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         best_nodes.sort()
         return all_nodes, best_nodes
 
-    def question2(
-        self, action: Action, verbose: bool = False
-    ) -> List[StateRepresentation]:
+    def question2(self, action: Action, verbose: bool = False) -> List[State]:
         """
         Answers the question: When do you perform action X?
         :param action: The action to query
@@ -449,8 +439,8 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
     def substract_predicates(
         self,
-        origin: Union[str, List[str], StateRepresentation, Tuple[Enum, ...]],
-        destination: Union[str, List[str], StateRepresentation, Tuple[Enum, ...]],
+        origin: Union[str, List[str], State, Tuple[Enum, ...]],
+        destination: Union[str, List[str], State, Tuple[Enum, ...]],
     ) -> Dict[str, Tuple[str, str]]:
         """
         Subtracts 2 predicates, getting only the values that are different
@@ -491,10 +481,10 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
     def nearby_predicates(
         self,
-        state: Union[StateRepresentation, Tuple[Enum, ...]],
+        state: Union[State, Tuple[Enum, ...]],
         greedy: bool = False,
         verbose: bool = False,
-    ) -> List[Tuple[Action, StateRepresentation, Dict[str, Tuple[str, str]]]]:
+    ) -> List[Tuple[Action, State, Dict[str, Tuple[str, str]]]]:
         """
         Gets nearby states from state
         :param state: State to analyze
@@ -502,7 +492,7 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         :param verbose: Whether to print verbose output
         :return: List of [Action, destination_state, difference]
         """
-        cast_state = cast(StateRepresentation, state)
+        cast_state = cast(State, state)
         out_edges = self.policy_representation.get_outgoing_transitions(cast_state)
         outs = []
 
@@ -525,7 +515,7 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
     def get_most_probable_option(
         self,
-        predicate: Union[StateRepresentation, Tuple[Enum, ...]],
+        predicate: Union[State, Tuple[Enum, ...]],
         greedy: bool = False,
         verbose: bool = False,
     ) -> Optional[Action]:
@@ -536,7 +526,7 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         :param verbose: Whether to print verbose output
         :return: The most probable action or None
         """
-        cast_predicate = cast(StateRepresentation, predicate)
+        cast_predicate = cast(State, predicate)
         if greedy:
             nearest_predicate = self.get_nearest_state(cast_predicate, verbose=verbose)
             possible_transitions = self.policy_representation.get_possible_transitions(
@@ -558,7 +548,7 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
     def question3(
         self,
-        predicate: Union[StateRepresentation, Tuple[Enum, ...]],
+        predicate: Union[State, Tuple[Enum, ...]],
         action: Action,
         greedy: bool = False,
         verbose: bool = False,

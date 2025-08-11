@@ -1,9 +1,14 @@
 import unittest
 from test.domain.cartpole import CartpoleDiscretizer
-from test.domain.test_env import State, TestingAgent, TestingDiscretizer, TestingEnv
+from test.domain.test_env import (
+    DummyState,
+    TestingAgent,
+    TestingDiscretizer,
+    TestingEnv,
+)
 
 from pgeon import GraphRepresentation, Predicate
-from pgeon.discretizer import PredicateBasedStateRepresentation, Transition
+from pgeon.discretizer import PredicateBasedState, Transition
 from pgeon.policy_approximator import (
     OfflinePolicyApproximator,
     PolicyApproximatorFromBasicObservation,
@@ -27,20 +32,20 @@ class TestPolicyApproximator(unittest.TestCase):
             self.discretizer, self.representation, self.env, self.agent
         )
 
-        self.state0 = PredicateBasedStateRepresentation((Predicate(State.ZERO),))
-        self.state1 = PredicateBasedStateRepresentation((Predicate(State.ONE),))
-        self.state2 = PredicateBasedStateRepresentation((Predicate(State.TWO),))
-        self.state3 = PredicateBasedStateRepresentation((Predicate(State.THREE),))
+        self.state0 = PredicateBasedState((Predicate(DummyState.ZERO),))
+        self.state1 = PredicateBasedState((Predicate(DummyState.ONE),))
+        self.state2 = PredicateBasedState((Predicate(DummyState.TWO),))
+        self.state3 = PredicateBasedState((Predicate(DummyState.THREE),))
 
         self.action0: Action = 0
         self.action1: Action = 1
 
         self.original_get_predicate_space = self.discretizer.get_predicate_space
         self.discretizer.get_predicate_space = lambda: [
-            (Predicate(State.ZERO),),
-            (Predicate(State.ONE),),
-            (Predicate(State.TWO),),
-            (Predicate(State.THREE),),
+            (Predicate(DummyState.ZERO),),
+            (Predicate(DummyState.ONE),),
+            (Predicate(DummyState.TWO),),
+            (Predicate(DummyState.THREE),),
         ]
 
     def tearDown(self):
@@ -109,8 +114,8 @@ class TestPolicyApproximator(unittest.TestCase):
         nearest = self.approximator.get_nearest_state(self.state0)
         self.assertEqual(nearest, self.state0)
 
-        nonexistent_state = PredicateBasedStateRepresentation(
-            (Predicate(State.ZERO), Predicate(State.ONE))
+        nonexistent_state = PredicateBasedState(
+            (Predicate(DummyState.ZERO), Predicate(DummyState.ONE))
         )
         nearest = self.approximator.get_nearest_state(nonexistent_state)
         self.assertIn(nearest, [self.state0, self.state1, self.state2, self.state3])
@@ -118,7 +123,7 @@ class TestPolicyApproximator(unittest.TestCase):
         # Test with multiple nearest predicates
         self.representation.clear()
         self.representation.add_states_from([self.state0, self.state1])
-        nonexistent_state = PredicateBasedStateRepresentation((Predicate(State.TWO),))
+        nonexistent_state = PredicateBasedState((Predicate(DummyState.TWO),))
         nearest = self.approximator.get_nearest_state(nonexistent_state)
         self.assertIn(nearest, [self.state0, self.state1])
 

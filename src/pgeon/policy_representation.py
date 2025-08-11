@@ -18,7 +18,7 @@ import networkx as nx
 from pgeon.discretizer import (
     Action,
     Discretizer,
-    StateRepresentation,
+    State,
     Transition,
 )
 
@@ -65,44 +65,42 @@ class PolicyRepresentation(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_possible_transitions(self, state: StateRepresentation) -> List[Transition]:
+    def get_possible_transitions(self, state: State) -> List[Transition]:
         """Get all possible actions from a state."""
         ...
 
     @abc.abstractmethod
     def get_possible_next_states(
-        self, state: StateRepresentation, action: Optional[Action] = None
-    ) -> Collection[StateRepresentation]:
+        self, state: State, action: Optional[Action] = None
+    ) -> Collection[State]:
         """Get all possible next states from a state, optionally filtered by action."""
         ...
 
     @abc.abstractmethod
-    def has_state(self, state: StateRepresentation) -> bool:
+    def has_state(self, state: State) -> bool:
         """Check if a state exists in the policy representation."""
         ...
 
     @abc.abstractmethod
-    def get_state_data(self, state: StateRepresentation) -> Dict[str, Any]:
+    def get_state_data(self, state: State) -> Dict[str, Any]:
         """Get data associated with a specific state."""
         ...
 
     @abc.abstractmethod
-    def add_state(self, state: StateRepresentation, **attributes) -> None:
+    def add_state(self, state: State, **attributes) -> None:
         """Add a state to the policy representation with optional attributes."""
         ...
 
     @abc.abstractmethod
-    def add_states_from(
-        self, states: Collection[StateRepresentation], **attributes
-    ) -> None:
+    def add_states_from(self, states: Collection[State], **attributes) -> None:
         """Add multiple states to the policy representation with optional attributes."""
         ...
 
     @abc.abstractmethod
     def add_transition(
         self,
-        from_state: StateRepresentation,
-        to_state: StateRepresentation,
+        from_state: State,
+        to_state: State,
         action: Action,
         **attributes,
     ) -> None:
@@ -112,9 +110,7 @@ class PolicyRepresentation(abc.ABC):
     @abc.abstractmethod
     def add_transitions_from(
         self,
-        transitions: Collection[
-            Tuple[StateRepresentation, StateRepresentation, Action]
-        ],
+        transitions: Collection[Tuple[State, State, Action]],
         **attributes,
     ) -> None:
         """Add multiple transitions with optional attributes."""
@@ -123,8 +119,8 @@ class PolicyRepresentation(abc.ABC):
     @abc.abstractmethod
     def get_transition_data(
         self,
-        from_state: StateRepresentation,
-        to_state: StateRepresentation,
+        from_state: State,
+        to_state: State,
         action: Action,
     ) -> Dict[str, Any]:
         """Get data associated with a specific transition."""
@@ -133,50 +129,46 @@ class PolicyRepresentation(abc.ABC):
     @abc.abstractmethod
     def has_transition(
         self,
-        from_state: StateRepresentation,
-        to_state: StateRepresentation,
+        from_state: State,
+        to_state: State,
         action: Optional[Action] = None,
     ) -> bool:
         """Check if a transition exists."""
         ...
 
     @abc.abstractmethod
-    def get_state_attributes(
-        self, attribute_name: str
-    ) -> Dict[StateRepresentation, Any]:
+    def get_state_attributes(self, attribute_name: str) -> Dict[State, Any]:
         """Get attributes for all states by name."""
         ...
 
     @abc.abstractmethod
     def set_state_attributes(
-        self, attributes: Dict[StateRepresentation, Any], attribute_name: str
+        self, attributes: Dict[State, Any], attribute_name: str
     ) -> None:
         """Set attributes for states."""
         ...
 
     @abc.abstractmethod
-    def get_all_states(self) -> Collection[StateRepresentation]:
+    def get_all_states(self) -> Collection[State]:
         """Get all states in the policy representation."""
         ...
 
     @abc.abstractmethod
     def get_all_transitions(
         self,
-    ) -> Collection[Tuple[StateRepresentation, StateRepresentation, Dict[str, Any]],]:
+    ) -> Collection[Tuple[State, State, Dict[str, Any]],]:
         """Get all transitions, including associated data."""
         ...
 
     @abc.abstractmethod
     def get_outgoing_transitions(
-        self, state: StateRepresentation
-    ) -> Collection[Tuple[StateRepresentation, StateRepresentation, Dict[str, Any]],]:
+        self, state: State
+    ) -> Collection[Tuple[State, State, Dict[str, Any]],]:
         """Get all transitions originating from a state."""
         ...
 
     @abc.abstractmethod
-    def get_predecessors(
-        self, state: StateRepresentation
-    ) -> Collection[StateRepresentation]:
+    def get_predecessors(self, state: State) -> Collection[State]:
         """Get all predecessors of a state."""
         ...
 
@@ -187,8 +179,8 @@ class PolicyRepresentation(abc.ABC):
 
     @abc.abstractmethod
     def get_transitions_from_state(
-        self, state: StateRepresentation
-    ) -> Dict[Action, Collection[StateRepresentation]]:
+        self, state: State
+    ) -> Dict[Action, Collection[State]]:
         """Get a mapping of actions to possible next states from a given state."""
         ...
 
@@ -209,41 +201,37 @@ class GraphRepresentation(PolicyRepresentation):
         """Abstract base class for graph implementations."""
 
         @abc.abstractmethod
-        def add_node(self, node: StateRepresentation, **kwargs) -> None: ...
+        def add_node(self, node: State, **kwargs) -> None: ...
 
         @abc.abstractmethod
-        def add_nodes_from(
-            self, nodes: Collection[StateRepresentation], **kwargs
-        ) -> None: ...
+        def add_nodes_from(self, nodes: Collection[State], **kwargs) -> None: ...
 
         @abc.abstractmethod
-        def add_edge(
-            self, node_from: StateRepresentation, node_to: StateRepresentation, **kwargs
-        ) -> None: ...
+        def add_edge(self, node_from: State, node_to: State, **kwargs) -> None: ...
 
         @abc.abstractmethod
         def add_edges_from(
             self,
-            edges: Collection[Tuple[StateRepresentation, StateRepresentation, Any]],
+            edges: Collection[Tuple[State, State, Any]],
             **kwargs,
         ) -> None: ...
 
         @abc.abstractmethod
         def get_edge_data(
-            self, node_from: StateRepresentation, node_to: StateRepresentation, key: Any
+            self, node_from: State, node_to: State, key: Any
         ) -> Dict[str, Any]: ...
 
         @abc.abstractmethod
-        def has_node(self, node: StateRepresentation) -> bool: ...
+        def has_node(self, node: State) -> bool: ...
 
         @abc.abstractmethod
-        def get_node(self, node: StateRepresentation) -> Dict[str, Any]: ...
+        def get_node(self, node: State) -> Dict[str, Any]: ...
 
         @abc.abstractmethod
         def has_edge(
             self,
-            node_from: StateRepresentation,
-            node_to: StateRepresentation,
+            node_from: State,
+            node_to: State,
             key: Any = None,
         ) -> bool: ...
 
@@ -254,28 +242,24 @@ class GraphRepresentation(PolicyRepresentation):
         def edges(self, data: bool = False) -> Iterator: ...
 
         @abc.abstractmethod
-        def out_edges(
-            self, node: StateRepresentation, data: bool = False
-        ) -> Iterator: ...
+        def out_edges(self, node: State, data: bool = False) -> Iterator: ...
 
         @abc.abstractmethod
-        def predecessors(self, node: StateRepresentation) -> Iterator: ...
+        def predecessors(self, node: State) -> Iterator: ...
 
         @abc.abstractmethod
-        def get_node_attributes(
-            self, attribute_name: str
-        ) -> Dict[StateRepresentation, Any]: ...
+        def get_node_attributes(self, attribute_name: str) -> Dict[State, Any]: ...
 
         @abc.abstractmethod
         def set_node_attributes(
-            self, attributes: Dict[StateRepresentation, Any], attribute_name: str
+            self, attributes: Dict[State, Any], attribute_name: str
         ) -> None: ...
 
         @abc.abstractmethod
         def clear(self) -> None: ...
 
         @abc.abstractmethod
-        def __getitem__(self, node: StateRepresentation) -> Any: ...
+        def __getitem__(self, node: State) -> Any: ...
 
         # TODO: Make the return type include other possible backends
         @property
@@ -289,48 +273,44 @@ class GraphRepresentation(PolicyRepresentation):
             # Not calling super().__init__() since Graph is an ABC
             self._nx_graph = nx.MultiDiGraph()
 
-        def __getitem__(self, node: StateRepresentation) -> Any:
+        def __getitem__(self, node: State) -> Any:
             return cast(
-                Dict[StateRepresentation, Dict[Any, Dict[str, Any]]],
+                Dict[State, Dict[Any, Dict[str, Any]]],
                 self._nx_graph[node],
             )
 
-        def add_node(self, node: StateRepresentation, **kwargs) -> None:
+        def add_node(self, node: State, **kwargs) -> None:
             self._nx_graph.add_node(node, **kwargs)
 
-        def add_nodes_from(
-            self, nodes: Collection[StateRepresentation], **kwargs
-        ) -> None:
+        def add_nodes_from(self, nodes: Collection[State], **kwargs) -> None:
             self._nx_graph.add_nodes_from(nodes, **kwargs)
 
-        def add_edge(
-            self, node_from: StateRepresentation, node_to: StateRepresentation, **kwargs
-        ) -> None:
+        def add_edge(self, node_from: State, node_to: State, **kwargs) -> None:
             self._nx_graph.add_edge(node_from, node_to, **kwargs)
 
         def add_edges_from(
             self,
-            edges: Collection[Tuple[StateRepresentation, StateRepresentation, Any]],
+            edges: Collection[Tuple[State, State, Any]],
             **kwargs,
         ) -> None:
             self._nx_graph.add_edges_from(edges, **kwargs)
 
         def get_edge_data(
-            self, node_from: StateRepresentation, node_to: StateRepresentation, key: Any
+            self, node_from: State, node_to: State, key: Any
         ) -> Dict[str, Any]:
             data = self._nx_graph.get_edge_data(node_from, node_to, key)
             return cast(Dict[str, Any], data) if data else {}
 
-        def has_node(self, node: StateRepresentation) -> bool:
+        def has_node(self, node: State) -> bool:
             return self._nx_graph.has_node(node)
 
-        def get_node(self, node: StateRepresentation) -> Dict[str, Any]:
+        def get_node(self, node: State) -> Dict[str, Any]:
             return self._nx_graph.nodes[node]
 
         def has_edge(
             self,
-            node_from: StateRepresentation,
-            node_to: StateRepresentation,
+            node_from: State,
+            node_to: State,
             key: Any = None,
         ) -> bool:
             return self._nx_graph.has_edge(node_from, node_to, key)
@@ -342,20 +322,18 @@ class GraphRepresentation(PolicyRepresentation):
             return self._nx_graph.edges(data=data)
 
         def out_edges(
-            self, node: StateRepresentation, data: bool = False
+            self, node: State, data: bool = False
         ) -> nx.reportviews.OutMultiEdgeView:
             return self._nx_graph.out_edges(node, data=data)
 
-        def predecessors(self, node: StateRepresentation) -> Iterator:
+        def predecessors(self, node: State) -> Iterator:
             return self._nx_graph.predecessors(node)
 
-        def get_node_attributes(
-            self, attribute_name: str
-        ) -> Dict[StateRepresentation, Any]:
+        def get_node_attributes(self, attribute_name: str) -> Dict[State, Any]:
             return nx.get_node_attributes(self._nx_graph, attribute_name)
 
         def set_node_attributes(
-            self, attributes: Dict[StateRepresentation, Any], attribute_name: str
+            self, attributes: Dict[State, Any], attribute_name: str
         ) -> None:
             nx.set_node_attributes(self._nx_graph, attributes, attribute_name)
 
@@ -382,7 +360,7 @@ class GraphRepresentation(PolicyRepresentation):
         ...
 
     # Implementation of PolicyRepresentation interface using graph terminology
-    def get_possible_transitions(self, state: StateRepresentation) -> List[Transition]:
+    def get_possible_transitions(self, state: State) -> List[Transition]:
         """Get all possible transitions from a state with their probabilities."""
         if not self.has_state(state):
             return []
@@ -394,8 +372,8 @@ class GraphRepresentation(PolicyRepresentation):
         return sorted(transitions, key=lambda item: item.probability, reverse=True)
 
     def get_possible_next_states(
-        self, state: StateRepresentation, action: Optional[Action] = None
-    ) -> Collection[StateRepresentation]:
+        self, state: State, action: Optional[Action] = None
+    ) -> Collection[State]:
         """Get all possible next states from a state, optionally filtered by action."""
         if not self.has_state(state):
             return []
@@ -408,23 +386,21 @@ class GraphRepresentation(PolicyRepresentation):
                 next_states.append(to_state)
         return next_states
 
-    def has_state(self, state: StateRepresentation) -> bool:
+    def has_state(self, state: State) -> bool:
         """Check if a state exists in the policy representation."""
         return self.graph.has_node(state)
 
-    def get_state_data(self, state: StateRepresentation) -> Dict[str, Any]:
+    def get_state_data(self, state: State) -> Dict[str, Any]:
         """Get data associated with a specific state."""
         return self.graph.get_node(state)
 
-    def add_state(self, state: StateRepresentation, **attributes) -> None:
+    def add_state(self, state: State, **attributes) -> None:
         """Add a state to the policy representation with optional attributes."""
         if "frequency" not in attributes:
             attributes["frequency"] = 0
         self.graph.add_node(state, **attributes)
 
-    def add_states_from(
-        self, states: Collection[StateRepresentation], **attributes
-    ) -> None:
+    def add_states_from(self, states: Collection[State], **attributes) -> None:
         """Add multiple states to the policy representation with optional attributes."""
         if "frequency" not in attributes:
             attributes["frequency"] = 0
@@ -432,8 +408,8 @@ class GraphRepresentation(PolicyRepresentation):
 
     def add_transition(
         self,
-        from_state: StateRepresentation,
-        to_state: StateRepresentation,
+        from_state: State,
+        to_state: State,
         transition: Transition,
     ) -> None:
         """Add a transition between states with an action and optional attributes."""
@@ -443,9 +419,7 @@ class GraphRepresentation(PolicyRepresentation):
 
     def add_transitions_from(
         self,
-        transitions: Collection[
-            Tuple[StateRepresentation, StateRepresentation, Action]
-        ],
+        transitions: Collection[Tuple[State, State, Action]],
         **attributes,
     ) -> None:
         """Add multiple transitions with optional attributes."""
@@ -458,8 +432,8 @@ class GraphRepresentation(PolicyRepresentation):
 
     def get_transition_data(
         self,
-        from_state: StateRepresentation,
-        to_state: StateRepresentation,
+        from_state: State,
+        to_state: State,
         action: Action,
     ) -> Transition:
         """Get data associated with a specific transition."""
@@ -470,26 +444,24 @@ class GraphRepresentation(PolicyRepresentation):
 
     def has_transition(
         self,
-        from_state: StateRepresentation,
-        to_state: StateRepresentation,
+        from_state: State,
+        to_state: State,
         action: Optional[Action] = None,
     ) -> bool:
         """Check if a transition exists."""
         return self.graph.has_edge(from_state, to_state, action)
 
-    def get_state_attributes(
-        self, attribute_name: str
-    ) -> Dict[StateRepresentation, Any]:
+    def get_state_attributes(self, attribute_name: str) -> Dict[State, Any]:
         """Get attributes for all states by name."""
         return self.graph.get_node_attributes(attribute_name)
 
     def set_state_attributes(
-        self, attributes: Dict[StateRepresentation, Any], attribute_name: str
+        self, attributes: Dict[State, Any], attribute_name: str
     ) -> None:
         """Set attributes for states."""
         self.graph.set_node_attributes(attributes, attribute_name)
 
-    def get_all_states(self) -> Collection[StateRepresentation]:
+    def get_all_states(self) -> Collection[State]:
         """Get all states in the policy representation."""
         return list(self.graph.nodes())
 
@@ -497,13 +469,11 @@ class GraphRepresentation(PolicyRepresentation):
         """Get all transitions, including associated data."""
         return list(self.graph.edges(data=True))
 
-    def get_outgoing_transitions(self, state: StateRepresentation) -> Collection:
+    def get_outgoing_transitions(self, state: State) -> Collection:
         """Get all transitions originating from a state."""
         return list(self.graph.out_edges(state, data=True))
 
-    def get_predecessors(
-        self, state: StateRepresentation
-    ) -> Collection[StateRepresentation]:
+    def get_predecessors(self, state: State) -> Collection[State]:
         """Get all predecessors of a state."""
         return list(self.graph.predecessors(state))
 
@@ -512,8 +482,8 @@ class GraphRepresentation(PolicyRepresentation):
         self.graph.clear()
 
     def get_transitions_from_state(
-        self, state: StateRepresentation
-    ) -> Dict[Action, Collection[StateRepresentation]]:
+        self, state: State
+    ) -> Dict[Action, Collection[State]]:
         """Get a mapping of actions to possible next states from a given state."""
         if not self.has_state(state):
             return {}
@@ -553,7 +523,7 @@ class GraphRepresentation(PolicyRepresentation):
                     state_from, state_to, Transition(action=action, frequency=1)
                 )
 
-    def __getitem__(self, state: StateRepresentation) -> Any:
+    def __getitem__(self, state: State) -> Any:
         """Get the transitions from a state, organized by destination state."""
         return self.graph[state]
 

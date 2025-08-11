@@ -3,15 +3,28 @@ from enum import Enum
 from test.domain.cartpole import (
     Action,
 )
-from test.domain.test_env import State, TestingAgent, TestingDiscretizer, TestingEnv
+from test.domain.test_env import (
+    DummyState,
+    TestingAgent,
+    TestingDiscretizer,
+    TestingEnv,
+)
 from typing import List
 
 from pgeon.desire import Desire
-from pgeon.discretizer import Predicate, PredicateBasedStateRepresentation
+from pgeon.discretizer import Predicate, PredicateBasedState
 from pgeon.intention_aware_policy_approximator import (
     IntentionAwarePolicyApproximator,
+    ProbQuery,
 )
 from pgeon.policy_representation import GraphRepresentation
+
+
+class TestProbQuery(unittest.TestCase):
+    def test_init(self):
+        query = ProbQuery(s=DummyState.ZERO, a=Action.UP)
+        self.assertEqual(query.s, DummyState.ZERO)
+        self.assertEqual(query.a, Action.UP)
 
 
 class TestIntentionAwarePolicyApproximator(unittest.TestCase):
@@ -79,11 +92,11 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
         )
         self.ipg.fit(n_episodes=1)
 
-        self.state0 = PredicateBasedStateRepresentation((Predicate(State.ZERO),))
-        self.state1 = PredicateBasedStateRepresentation((Predicate(State.ONE),))
+        self.state0 = PredicateBasedState((Predicate(DummyState.ZERO),))
+        self.state1 = PredicateBasedState((Predicate(DummyState.ONE),))
         self.action0: Action = 0
 
-        self.desire_north = Desire("north", self.action0, {Predicate(State.ONE)})
+        self.desire_north = Desire("north", self.action0, {Predicate(DummyState.ONE)})
         self.desires = self.get_desires()
 
     def test_initialization(self):

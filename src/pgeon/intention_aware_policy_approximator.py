@@ -1,6 +1,6 @@
 import abc
 import warnings
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import gymnasium as gym
@@ -13,8 +13,8 @@ from pgeon.discretizer import (
     Action,
     Discretizer,
     Predicate,
-    PredicateBasedStateRepresentation,
-    StateRepresentation,
+    PredicateBasedState,
+    State,
     Transition,
 )
 from pgeon.policy_approximator import (
@@ -23,52 +23,51 @@ from pgeon.policy_approximator import (
 from pgeon.policy_representation import PolicyRepresentation
 
 HowTrace = List[
-    Tuple[Action, StateRepresentation, float]
+    Tuple[Action, State, float]
 ]  # Doing action, arriving at state, which has intention
 WhyTrace = Dict[str, float | str]
 
 
-@dataclass
+@dataclass(frozen=True)
 class ProbQuery:
-    s: Optional[StateRepresentation] = None
+    s: Optional[State] = None
     a: Optional[Action] = None
-    s_prima: Optional[StateRepresentation] = None
-    given_s: Optional[StateRepresentation] = None
+    s_prima: Optional[State] = None
+    given_s: Optional[State] = None
     given_a: Optional[Action] = None
     given_do_a: Optional[Action] = None
 
     def __post_init__(self):
         # CURRENT ACCEPTABLE USAGES #
         # s | a,given_s | s',a,given_s | s',given_a,given_s |s', given_do_a,given_s | s', s #
-        self.validate(**asdict(self))
-
-    @classmethod
-    def validate(
-        cls,
-        s: StateRepresentation = None,
-        a: Action = None,
-        s_prima: StateRepresentation = None,
-        given_s: StateRepresentation = None,
-        given_a: Action = None,
-        given_do_a: Action = None,
-    ):
         assert any(
-            [var is not None for var in [s, a, s_prima, given_s, given_a, given_do_a]]
+            [
+                var is not None
+                for var in [
+                    self.s,
+                    self.a,
+                    self.s_prima,
+                    self.given_s,
+                    self.given_a,
+                    self.given_do_a,
+                ]
+            ]
         )
         assert (
-            s is None or given_s is None
+            self.s is None or self.given_s is None
         ), "Invalid usage, can't use s and given_s simultaneously"
-        assert [v is None for v in [a, given_a, given_do_a]].count(
+        assert [v is None for v in [self.a, self.given_a, self.given_do_a]].count(
             False
         ) <= 1, "Invalid usage, can't use a, given_a, or given_do_a simultaneously"  # At most 1 not None
-        assert s is None or all(
-            v is None for v in [a, s_prima, given_s, given_a, given_do_a]
+        assert self.s is None or all(
+            v is None
+            for v in [self.a, self.s_prima, self.given_s, self.given_a, self.given_do_a]
         )
         assert (
-            given_a is None or s_prima is not None
+            self.given_a is None or self.s_prima is not None
         ), "given_a requires setting s_prima"
         assert (
-            given_do_a is None or s_prima is not None
+            self.given_do_a is None or self.s_prima is not None
         ), "given_do_a requires setting s_prima"
 
 
@@ -185,7 +184,7 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
         return attributed_intention_probabilities, expected_intentions
 
     @abc.abstractmethod
-    def stateID_to_node(self, s: StateRepresentation) -> StateRepresentation:
+    def stateID_to_node(self, s: State) -> State:
         pass
 
     @abc.abstractmethod
@@ -195,60 +194,56 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
         pass
 
     @abc.abstractmethod
-    def get_possible_actions(self, s: StateRepresentation) -> List[Action]:
+    def get_possible_actions(self, s: State) -> List[Action]:
         pass
 
     @abc.abstractmethod
-    def get_possible_s_prima(
-        self, s: StateRepresentation, a: Action = None
-    ) -> List[StateRepresentation]:
+    def get_possible_s_prima(self, s: State, a: Action = None) -> List[State]:
         raise NotImplemented
 
     @abc.abstractmethod
-    def get_all_state_ids(self) -> Iterable[StateRepresentation]:
+    def get_all_state_ids(self) -> Iterable[State]:
         pass
 
     @abc.abstractmethod
-    def _prob_s(self, s: StateRepresentation) -> float:
+    def _prob_s(self, s: State) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
     def _prob_s_prima_a_given_s(
-        self, s_prima: StateRepresentation, a: Action, given_s: StateRepresentation
+        self, s_prima: State, a: Action, given_s: State
     ) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _prob_a_given_s(self, a: Action, given_s: StateRepresentation) -> float:
+    def _prob_a_given_s(self, a: Action, given_s: State) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
     def _prob_s_prima_given_a_s(
         self,
-        s_prima: StateRepresentation,
+        s_prima: State,
         given_a: Action,
-        given_s: StateRepresentation,
+        given_s: State,
     ) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
     def _prob_s_prima_given_do_a_given_s(
         self,
-        s_prima: StateRepresentation,
+        s_prima: State,
         given_do_a: Action,
-        given_s: StateRepresentation,
+        given_s: State,
     ) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
-    def _prob_s_prima_given_s(
-        self, s_prima: StateRepresentation, given_s: StateRepresentation
-    ) -> float:
+    def _prob_s_prima_given_s(self, s_prima: State, given_s: State) -> float:
         raise NotImplementedError
 
     @abc.abstractmethod
     def propagate_intention(
-        self, node: StateRepresentation, desire: Desire, p: float, stop_criterion: float
+        self, node: State, desire: Desire, p: float, stop_criterion: float
     ):
         pass
 
@@ -325,7 +320,7 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
             if p > 0:
                 self.propagate_intention(node, desire, p, stop_criterion)
 
-    def get_possible_actions(self, s: StateRepresentation) -> List[Action]:
+    def get_possible_actions(self, s: State) -> List[Action]:
         # Returns any a s.t. P(a|s)>0
         if isinstance(s, int):
             # TODO: Legacy: to be removed
@@ -337,9 +332,7 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
         else:
             return list(self.policy_representation.get_transitions_from_state(s).keys())
 
-    def get_possible_s_prima(
-        self, s: StateRepresentation, a: Action = None
-    ) -> List[StateRepresentation]:
+    def get_possible_s_prima(self, s: State, a: Action = None) -> List[State]:
         # Returns any a s.t. P(a|s)>0
         if isinstance(s, int):
             # TODO: Legacy: to be removed
@@ -365,13 +358,11 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
             destinies = list(set([dest for act, dest, p in edges_with_probs if p > 0]))
         return destinies
 
-    def get_all_state_ids(self) -> Iterable[StateRepresentation]:
+    def get_all_state_ids(self) -> Iterable[State]:
         return self.policy_representation.get_all_states()
 
-    def check_desire(
-        self, node: PredicateBasedStateRepresentation, desire: Desire
-    ) -> float:
-        if isinstance(node, PredicateBasedStateRepresentation):
+    def check_desire(self, node: PredicateBasedState, desire: Desire) -> float:
+        if isinstance(node, PredicateBasedState):
             predicates_in_state = set(node.predicates)
         else:
             predicates_in_state = set(node)
@@ -380,7 +371,7 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
             return 1.0
         return 0.0
 
-    def get_intention(self, s: StateRepresentation, desire: Desire):
+    def get_intention(self, s: State, desire: Desire):
         try:
             node_data = self.policy_representation.get_state_data(s)
             if "intention" in node_data and desire in node_data["intention"]:
@@ -389,7 +380,7 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
         except KeyError:
             return 0
 
-    def get_intentions(self, s: StateRepresentation) -> Dict[Desire, float]:
+    def get_intentions(self, s: State) -> Dict[Desire, float]:
         try:
             return self.policy_representation.get_state_data(s)["intention"]
         except KeyError:
@@ -402,12 +393,10 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
             self.policy_representation.get_state_data(s)["intention"] = dict()
             self.policy_representation.get_state_data(s)["intention"][desire] = new_int
 
-    def _prob_s(self, s: StateRepresentation):
+    def _prob_s(self, s: State):
         return self.policy_representation.get_state_data(s).probability
 
-    def _prob_s_prima_a_given_s(
-        self, s_prima: StateRepresentation, a: Action, given_s: StateRepresentation
-    ):
+    def _prob_s_prima_a_given_s(self, s_prima: State, a: Action, given_s: State):
         # Assuming the 's' is always in predicates format for simplicity
         try:
             prob = [
@@ -433,7 +422,7 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
         except KeyError:
             return 0
 
-    def _prob_a_given_s(self, a: Action, given_s: StateRepresentation):
+    def _prob_a_given_s(self, a: Action, given_s: State):
         # Assuming the 's' is always in predicates format for simplicity
         try:
             prob = [
@@ -465,9 +454,9 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
 
     def _prob_s_prima_given_do_a_given_s(
         self,
-        s_prima: StateRepresentation,
+        s_prima: State,
         given_do_a: Action,
-        given_s: StateRepresentation,
+        given_s: State,
     ):
         raise NotImplementedError("Basic PG can't handle do(a)")
 
@@ -482,12 +471,12 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
         ]
         return sum(prob)
 
-    def stateID_to_node(self, s: StateRepresentation) -> dict[str, Any]:
+    def stateID_to_node(self, s: State) -> dict[str, Any]:
         return self.policy_representation.get_state_data(s)
 
     def propagate_intention(
         self,
-        node: StateRepresentation,
+        node: State,
         desire: Desire,
         propagated_intention: float,
         stop_criterion: float,
@@ -515,14 +504,14 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
         current_intention_val = graph_node["intention"].get(desire, 0.0)
         graph_node["intention"][desire] = current_intention_val + intention
 
-    def get_action_probability(self, state: StateRepresentation) -> Dict[Action, float]:
+    def get_action_probability(self, state: State) -> Dict[Action, float]:
         # TODO: This should go in the representation parent class
         return {
             a: self.prob(ProbQuery(a=a, given_s=state))
             for a in self.get_possible_actions(state)
         }
 
-    def answer_what(self, state: StateRepresentation) -> List[Tuple[Goal, float]]:
+    def answer_what(self, state: State) -> List[Tuple[Goal, float]]:
         """Answers the question: What are the intentions in a given state?"""
         intentions = self.policy_representation.get_state_attributes("intention")
         if state in intentions:
@@ -531,7 +520,7 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
 
     def answer_how(
         self,
-        state: StateRepresentation,
+        state: State,
         desires: List[Desire],
     ) -> Dict[Desire, HowTrace]:
         """Answers the question: How to achieve a desire from a given state?"""
@@ -573,7 +562,7 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
 
     def answer_why(
         self,
-        state: StateRepresentation,
+        state: State,
         action: Action,
         minimum_probability_of_increase: float = 0,
     ) -> Dict[Desire, WhyTrace]:

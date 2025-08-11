@@ -1,7 +1,8 @@
+from __future__ import annotations
+
 import abc
-from dataclasses import dataclass
 from enum import Enum
-from typing import Collection, Iterator, Sequence, Type, Union
+from typing import Any, Collection, FrozenSet, Iterator, Sequence, Type, Union
 
 from pydantic import BaseModel
 
@@ -32,43 +33,44 @@ class Predicate:
             return hash(self.predicate) < hash(other.predicate)
 
 
-class StateRepresentation(abc.ABC):
-    predicates: Collection[Predicate]
-
+class State(abc.ABC):
     @abc.abstractmethod
-    def __eq__(self, other: "StateRepresentation") -> bool: ...
+    def __eq__(self, other: State) -> bool: ...
 
     @abc.abstractmethod
     def __hash__(self) -> int: ...
 
 
-@dataclass(frozen=True)
-class PredicateBasedStateRepresentation(StateRepresentation):
-    predicates: Collection[Predicate]
+class PredicateBasedState(State):
+    predicates: FrozenSet[Predicate]
 
-    def __eq__(
-        self, other: Union["PredicateBasedStateRepresentation", tuple[Predicate, ...]]
-    ) -> bool:
+    def __init__(self, predicates: Collection[Predicate]):
+        self.predicates = frozenset(predicates)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        if name == "predicates" and hasattr(self, "predicates"):
+            raise AttributeError("Cannot modify predicates")
+        super().__setattr__(name, value)
+
+    def __eq__(self, other: Union[PredicateBasedState, tuple[Predicate, ...]]) -> bool:
         if isinstance(other, tuple):
             if len(self.predicates) != len(other):
                 return False
-            return all(p1 == p2 for p1, p2 in zip(self.predicates, other))
+            return self.predicates == frozenset(other)
 
-        if isinstance(other, PredicateBasedStateRepresentation):
-            # If both are PredicateBasedStateRepresentation, compare their predicates
+        if isinstance(other, PredicateBasedState):
             if len(self.predicates) != len(other.predicates):
                 return False
-            return all(p1 == p2 for p1, p2 in zip(self.predicates, other.predicates))
-
+            return self.predicates == other.predicates
         return False
 
     def __hash__(self):
         return hash(tuple(self.predicates))
 
     def __lt__(self, other):
-        if not isinstance(other, PredicateBasedStateRepresentation):
+        if not isinstance(other, PredicateBasedState):
             raise ValueError
-        return hash(self) < hash(other)
+        return hash(self.predicates) < hash(other.predicates)
 
 
 # TODO: allow for more complex representations
@@ -104,7 +106,7 @@ class Discretizer(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def str_to_state(self, state: str) -> StateRepresentation:
+    def str_to_state(self, state: str) -> State:
         pass
 
     @abc.abstractmethod

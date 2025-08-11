@@ -3,7 +3,7 @@ from .desire import Desire
 from .discretizer import (
     Discretizer,
     Predicate,
-    PredicateBasedStateRepresentation,
+    PredicateBasedState,
 )
 from .environment import Environment
 from .intention_aware_policy_approximator import IntentionAwarePolicyApproximator
@@ -33,5 +33,5 @@ __all__ = [
     "PolicyApproximatorFromBasicObservation",
     "PolicyRepresentation",
     "Predicate",
-    "PredicateBasedStateRepresentation",
+    "PredicateBasedState",
 ]

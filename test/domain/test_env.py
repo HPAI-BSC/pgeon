@@ -6,10 +6,10 @@ import numpy as np
 from gymnasium.core import ActType, ObsType
 
 from pgeon import Agent, Discretizer, Predicate
-from pgeon.discretizer import PredicateBasedStateRepresentation
+from pgeon.discretizer import PredicateBasedState
 
 
-class State(Enum):
+class DummyState(Enum):
     ZERO = auto()
     ONE = auto()
     TWO = auto()
@@ -48,27 +48,36 @@ class TestingEnv(gymnasium.Env):
 
 class TestingDiscretizer(Discretizer):
     def discretize(self, state: np.ndarray) -> Tuple[Predicate]:
-        correct_predicate = [State.ZERO, State.ONE, State.TWO, State.THREE][state[0]]
+        correct_predicate = [
+            DummyState.ZERO,
+            DummyState.ONE,
+            DummyState.TWO,
+            DummyState.THREE,
+        ][state[0]]
         return (Predicate(correct_predicate),)
 
     def all_actions(self):
         return [0]
 
-    def nearest_state(self, state):
+    def nearest_state(self, state: PredicateBasedState):
         while True:
             value = state[0].value[0].value - 1
             yield (
-                Predicate([State.ZERO, State.ONE, State.TWO, State.THREE][value % 4]),
+                Predicate(
+                    [DummyState.ZERO, DummyState.ONE, DummyState.TWO, DummyState.THREE][
+                        value % 4
+                    ]
+                ),
             )
 
     def get_predicate_space(self) -> List[Tuple[Predicate, ...]]:
-        return (State,)
+        return (DummyState,)
 
-    def state_to_str(self, state):
-        return state.predicates[0].value.name
+    def state_to_str(self, state: PredicateBasedState):
+        return list(state.predicates)[0].value.name
 
-    def str_to_state(self, state_str):
-        return PredicateBasedStateRepresentation((Predicate(State[state_str]),))
+    def str_to_state(self, state_str: str) -> PredicateBasedState:
+        return PredicateBasedState((Predicate(DummyState[state_str]),))
 
 
 class TestingAgent(Agent):
