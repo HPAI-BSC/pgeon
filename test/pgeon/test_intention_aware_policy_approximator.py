@@ -1,8 +1,5 @@
 import unittest
 from enum import Enum
-from test.domain.cartpole import (
-    Action,
-)
 from test.domain.test_env import (
     DummyState,
     TestingAgent,
@@ -12,7 +9,7 @@ from test.domain.test_env import (
 from typing import List
 
 from pgeon.desire import Desire
-from pgeon.discretizer import Predicate, PredicateBasedState
+from pgeon.discretizer import Action, Predicate, PredicateBasedState
 from pgeon.intention_aware_policy_approximator import (
     IntentionAwarePolicyApproximator,
     ProbQuery,
@@ -21,10 +18,52 @@ from pgeon.policy_representation import GraphRepresentation
 
 
 class TestProbQuery(unittest.TestCase):
-    def test_init(self):
-        query = ProbQuery(s=DummyState.ZERO, a=Action.UP)
-        self.assertEqual(query.s, DummyState.ZERO)
-        self.assertEqual(query.a, Action.UP)
+    def test_valid_queries(self):
+        s = PredicateBasedState((Predicate(DummyState.ZERO),))
+        a = 0
+        s_prima = PredicateBasedState((Predicate(DummyState.ONE),))
+
+        # Valid queries that should not raise an error
+        ProbQuery(s=s)
+        ProbQuery(a=a, given_s=s)
+        ProbQuery(s_prima=s_prima, a=a, given_s=s)
+        ProbQuery(s_prima=s_prima, given_a=a, given_s=s)
+        ProbQuery(s_prima=s_prima, given_do_a=a, given_s=s)
+        ProbQuery(s_prima=s_prima, given_s=s)
+
+    def test_invalid_queries(self):
+        s = PredicateBasedState((Predicate(DummyState.ZERO),))
+        a = 0
+
+        # s and given_s
+        with self.assertRaises(AssertionError):
+            ProbQuery(s=s, given_s=s)
+
+        # Multiple action types
+        with self.assertRaises(AssertionError):
+            ProbQuery(a=a, given_a=a)
+        with self.assertRaises(AssertionError):
+            ProbQuery(a=a, given_do_a=a)
+        with self.assertRaises(AssertionError):
+            ProbQuery(given_a=a, given_do_a=a)
+        with self.assertRaises(AssertionError):
+            ProbQuery(a=a, given_a=a, given_do_a=a)
+
+        # s with other parameters
+        with self.assertRaises(AssertionError):
+            ProbQuery(s=s, a=a)
+
+        # given_a without s_prima
+        with self.assertRaises(AssertionError):
+            ProbQuery(given_a=a, given_s=s)
+
+        # given_do_a without s_prima
+        with self.assertRaises(AssertionError):
+            ProbQuery(given_do_a=a, given_s=s)
+
+        # No parameters
+        with self.assertRaises(AssertionError):
+            ProbQuery()
 
 
 class TestIntentionAwarePolicyApproximator(unittest.TestCase):
