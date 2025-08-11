@@ -127,6 +127,26 @@ class TestPolicyApproximator(unittest.TestCase):
         nearest = self.approximator.get_nearest_state(nonexistent_state)
         self.assertIn(nearest, [self.state0, self.state1])
 
+    def test_get_nearest_state_with_custom_state_metadata_class(self):
+        class CustomStateMetadata(StateMetadata):
+            custom_attribute: int = 0
+
+        representation_with_custom_state_metadata = GraphRepresentation(
+            state_metadata_class=CustomStateMetadata
+        )
+        self.representation.add_state(
+            self.state0, CustomStateMetadata(custom_attribute=1)
+        )
+        self.approximator = PolicyApproximatorFromBasicObservation(
+            self.discretizer,
+            representation_with_custom_state_metadata,
+            self.env,
+            self.agent,
+        )
+        self.approximator.fit(n_episodes=1)
+        nearest = self.approximator.get_nearest_state(self.state0)
+        self.assertEqual(nearest, self.state0)
+
     def test_question1(self):
         self.approximator.fit(n_episodes=1)
 

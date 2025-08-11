@@ -1,14 +1,11 @@
-import abc
 import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import gymnasium as gym
-import numpy as np
-from tqdm import tqdm
 
 from pgeon.agent import Agent
-from pgeon.desire import Desire, Goal
+from pgeon.desire import Desire, Goal, IntentionalStateMetadata
 from pgeon.discretizer import (
     Action,
     Discretizer,
@@ -71,197 +68,24 @@ class ProbQuery:
         ), "given_do_a requires setting s_prima"
 
 
-class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
+class IntentionAwarePolicyApproximator(
+    PolicyApproximatorFromBasicObservation[IntentionalStateMetadata]
+):
     def __init__(
         self,
         discretizer: Discretizer,
-        policy_representation: PolicyRepresentation,
+        policy_representation: PolicyRepresentation[IntentionalStateMetadata],
         environment: gym.Env,
         agent: Agent,
         verbose=False,
     ):
+        assert issubclass(
+            policy_representation.state_metadata_class, IntentionalStateMetadata
+        )
         super().__init__(discretizer, policy_representation, environment, agent)
-        self.registered_desires: List[Desire] = list()
-        self.verbose = verbose
-        self.c_threshold = 0.5
-
-    def prob(self, query: ProbQuery) -> float:
-        s, a, s_prima, given_s, given_a, given_do_a = (
-            query.s,
-            query.a,
-            query.s_prima,
-            query.given_s,
-            query.given_a,
-            query.given_do_a,
+        self.policy_representation: PolicyRepresentation[IntentionalStateMetadata] = (
+            policy_representation
         )
-        if s is not None:
-            return self._prob_s(s)
-        if a is not None:
-            if s_prima is not None:
-                return self._prob_s_prima_a_given_s(s_prima, a, given_s)
-            else:
-                return self._prob_a_given_s(a, given_s)
-        elif given_a is not None:
-            return self._prob_s_prima_given_a_s(s_prima, given_a, given_s)
-        elif given_do_a is not None:
-            return self._prob_s_prima_given_do_a_given_s(s_prima, given_a, given_s)
-        else:
-            return self._prob_s_prima_given_s(s_prima, given_s)
-
-    def register_all_desires(self, desires: List[Desire], stop_criterion: float = 1e-4):
-        for desire in desires:
-            self.register_desire(desire, stop_criterion)
-
-    def register_desire(self, desire: Desire, stop_criterion: float = 1e-4):
-        self.registered_desires.append(desire)
-
-        for s in self.get_all_state_ids():
-            self._set_intention(s, desire, 0)
-
-        for s in self.get_all_state_ids():
-            node = s
-            p = self.check_desire(node, desire)
-            if p is not None:
-                self.propagate_intention(node, desire, p, stop_criterion)
-
-    def compute_desire_statistics(self, desire: Desire):
-        action_prob_distribution = []
-        nodes_fulfilled = []
-        clause, action_idx = desire.clause, desire.action_idx
-        for s in self.get_all_state_ids():
-            node = self.stateID_to_node(s)
-            p = node.check_desire(clause, action_idx)
-            if p is not None:
-                action_prob_distribution.append(p)
-                nodes_fulfilled.append(node)
-
-        return action_prob_distribution, nodes_fulfilled
-
-    def compute_commitment_stats(self, desire_name, commitment_threshold):
-        intention_score = []
-        nodes_with_intent = []
-        for s in tqdm(
-            self.get_all_state_ids()
-        ):  # TODO DEcide to parametrise TQDM usage
-            node = self.stateID_to_node(s)
-            intention = node.intention.get(desire_name, 0)
-            if intention >= commitment_threshold:
-                intention_score.append(intention)
-                nodes_with_intent.append(node)
-        return intention_score, nodes_with_intent
-
-    def compute_intention_metrics(self, c_threshold):
-        attributed_intention_probabilities, expected_intentions = {}, {}
-        nodes_with_any_intention = set()
-        for desire in self.registered_desires:
-            intention_vals, nodes = self.compute_commitment_stats(
-                desire.name, commitment_threshold=c_threshold
-            )
-            int_states = np.array([self.prob(ProbQuery(s=n.node_id)) for n in nodes])
-            nodes_with_any_intention.update(set([n.node_id for n in nodes]))
-            attributed_intention_probability = int_states.sum()
-            expected_intention = (
-                np.dot(np.array(intention_vals), int_states)
-                / attributed_intention_probability
-            )
-            attributed_intention_probabilities[desire.name] = (
-                attributed_intention_probability
-            )
-            expected_intentions[desire.name] = expected_intention
-        int_states = np.array(
-            [self.prob(ProbQuery(s=n_idx)) for n_idx in nodes_with_any_intention]
-        )
-        int_total_probability = int_states.sum()
-        intention_max_vals = [
-            max(list(self.stateID_to_node(n_idx).intention.values()))
-            for n_idx in nodes_with_any_intention
-        ]
-        attributed_intention_probabilities["Any"] = int_total_probability
-        expected_intentions["Any"] = (
-            np.dot(np.array(intention_max_vals), int_states) / int_total_probability
-        )
-
-        return attributed_intention_probabilities, expected_intentions
-
-    @abc.abstractmethod
-    def stateID_to_node(self, s: State) -> State:
-        pass
-
-    @abc.abstractmethod
-    def check_desire(
-        self, node, desire_clause: Set[Predicate], action_id: int
-    ) -> float:
-        pass
-
-    @abc.abstractmethod
-    def get_possible_actions(self, s: State) -> List[Action]:
-        pass
-
-    @abc.abstractmethod
-    def get_possible_s_prima(self, s: State, a: Action = None) -> List[State]:
-        raise NotImplemented
-
-    @abc.abstractmethod
-    def get_all_state_ids(self) -> Iterable[State]:
-        pass
-
-    @abc.abstractmethod
-    def _prob_s(self, s: State) -> float:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def _prob_s_prima_a_given_s(
-        self, s_prima: State, a: Action, given_s: State
-    ) -> float:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def _prob_a_given_s(self, a: Action, given_s: State) -> float:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def _prob_s_prima_given_a_s(
-        self,
-        s_prima: State,
-        given_a: Action,
-        given_s: State,
-    ) -> float:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def _prob_s_prima_given_do_a_given_s(
-        self,
-        s_prima: State,
-        given_do_a: Action,
-        given_s: State,
-    ) -> float:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def _prob_s_prima_given_s(self, s_prima: State, given_s: State) -> float:
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def propagate_intention(
-        self, node: State, desire: Desire, p: float, stop_criterion: float
-    ):
-        pass
-
-    @abc.abstractmethod
-    def _set_intention(self, s, desire, param):
-        pass
-
-
-class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
-    def __init__(
-        self,
-        discretizer: Discretizer,
-        policy_representation: PolicyRepresentation,
-        environment: gym.Env,
-        agent: Agent,
-        verbose=False,
-    ):
-        super().__init__(discretizer, policy_representation, environment, agent)
         self.registered_desires: List[Desire] = list()
         self.verbose = verbose
         self.c_threshold = 0.5
@@ -309,11 +133,10 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
 
     def register_desire(self, desire: Desire, stop_criterion=1e-4):
         self.registered_desires.append(desire)
-        for node in self.policy_representation.get_all_states():
-            node_data = self.policy_representation.get_state_data(node)
-            if "intention" not in node_data:
-                node_data["intention"] = {}
-            node_data["intention"][desire] = 0.0
+        for state in self.policy_representation.get_all_states():
+            state_metadata = self.policy_representation.get_state_data(state)
+            state_metadata.intention[desire] = 0.0
+            self.policy_representation.set_state_metadata({state: state_metadata})
 
         for node in self.policy_representation.get_all_states():
             p = self.check_desire(node, desire)
@@ -339,12 +162,15 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
             node = self.stateID_to_node(s)
         else:
             node = s
-        edges_with_probs = [
-            (data["action"], dest, data["probability"])
-            for orig, dest, data in self.policy_representation.get_outgoing_transitions(
-                node
-            )
-        ]
+        try:
+            edges_with_probs = [
+                (data["action"], dest, data["probability"])
+                for orig, dest, data in self.policy_representation.get_outgoing_transitions(
+                    node
+                )
+            ]
+        except KeyError:
+            edges_with_probs = []
         # TODO: Check on this
         edges_with_probs = list(
             set(edges_with_probs)
@@ -367,31 +193,26 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
         else:
             predicates_in_state = set(node)
 
-        if desire.clause.issubset(predicates_in_state):
+        if desire.clause.predicates.issubset(predicates_in_state):
             return 1.0
         return 0.0
 
     def get_intention(self, s: State, desire: Desire):
         try:
             node_data = self.policy_representation.get_state_data(s)
-            if "intention" in node_data and desire in node_data["intention"]:
-                return node_data["intention"][desire]
-            return 0
+            return node_data.intention.get(desire, 0.0)
         except KeyError:
             return 0
 
     def get_intentions(self, s: State) -> Dict[Desire, float]:
         try:
-            return self.policy_representation.get_state_data(s)["intention"]
+            return self.policy_representation.get_state_data(s).intention
         except KeyError:
             return dict()
 
     def _set_intention(self, s, desire, new_int):
-        try:
-            self.policy_representation.get_state_data(s)["intention"][desire] = new_int
-        except KeyError:
-            self.policy_representation.get_state_data(s)["intention"] = dict()
-            self.policy_representation.get_state_data(s)["intention"][desire] = new_int
+        node_data = self.policy_representation.get_state_data(s)
+        node_data.intention[desire] = new_int
 
     def _prob_s(self, s: State):
         return self.policy_representation.get_state_data(s).probability
@@ -501,8 +322,9 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
 
     def _update_intention(self, node, desire, intention):
         graph_node = self.policy_representation.get_state_data(node)
-        current_intention_val = graph_node["intention"].get(desire, 0.0)
-        graph_node["intention"][desire] = current_intention_val + intention
+        current_intention_val = graph_node.intention.get(desire, 0.0)
+        graph_node.intention[desire] = current_intention_val + intention
+        self.policy_representation.set_state_metadata({node: graph_node})
 
     def get_action_probability(self, state: State) -> Dict[Action, float]:
         # TODO: This should go in the representation parent class
@@ -513,9 +335,9 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
 
     def answer_what(self, state: State) -> List[Tuple[Goal, float]]:
         """Answers the question: What are the intentions in a given state?"""
-        intentions = self.policy_representation.get_state_attributes("intention")
-        if state in intentions:
-            return [(d, v) for d, v in intentions[state].items()]
+        intentions = self.policy_representation.get_state_data(state).intention
+        if intentions:
+            return list(intentions.items())
         return []
 
     def answer_how(
@@ -527,9 +349,9 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
         how_paths_per_desire = dict()
         for desire in desires:
             x = self.check_desire(state, desire)
-            if x is not None:
+            if x > 0:
                 how_paths_per_desire[desire] = [
-                    (desire.action_idx, None, None)
+                    (desire.action, None, None)
                 ]  # Desire will get fulfilled here
                 continue
             best_node, best_action, best_intention = None, None, 0
@@ -587,8 +409,8 @@ class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
 
             int_increase: Dict[Desire, WhyTrace] = {}
             for d, curr_int in current_attr_ints.items():
-                if self.check_desire(state, d) is not None:
-                    if action == d.action_idx:
+                if self.check_desire(state, d) > 0:
+                    if action == d.action:
                         int_increase[d] = "fulfilled"
                         continue
                 # For each desire attributed, compute expected increase (sum_s' P(s'|a,s)*I_d(s') -I_d(s) ),

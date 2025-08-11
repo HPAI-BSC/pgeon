@@ -6,10 +6,13 @@ from typing import (
     Any,
     Collection,
     Dict,
+    Generic,
     Iterator,
     List,
     Optional,
     Tuple,
+    Type,
+    TypeVar,
     cast,
 )
 
@@ -23,6 +26,8 @@ from pgeon.discretizer import (
     Transition,
 )
 
+TStateMetadata = TypeVar("TStateMetadata", bound=StateMetadata)
+
 
 class ProbabilityQuery: ...
 
@@ -30,14 +35,15 @@ class ProbabilityQuery: ...
 class IntentionMixin: ...
 
 
-class PolicyRepresentation(abc.ABC):
+class PolicyRepresentation(abc.ABC, Generic[TStateMetadata]):
     """
     Abstract base class for policy representations.
     A policy representation stores states, actions, and transitions between states.
     """
 
-    def __init__(self):
+    def __init__(self, state_metadata_class: Type[TStateMetadata] = StateMetadata):
         self._discretizer: Discretizer
+        self.state_metadata_class = state_metadata_class
 
     @staticmethod
     @abc.abstractmethod
@@ -83,13 +89,13 @@ class PolicyRepresentation(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_state_data(self, state: State) -> StateMetadata:
+    def get_state_data(self, state: State) -> TStateMetadata:
         """Get data associated with a specific state."""
         ...
 
     @abc.abstractmethod
     def add_state(
-        self, state: State, state_metadata: Optional[StateMetadata] = StateMetadata()
+        self, state: State, state_metadata: Optional[TStateMetadata] = None
     ) -> None:
         """Add a state to the policy representation with optional attributes."""
         ...
@@ -98,7 +104,7 @@ class PolicyRepresentation(abc.ABC):
     def add_states_from(
         self,
         states: Collection[State],
-        state_metadata: Optional[StateMetadata] = StateMetadata(),
+        state_metadata: Optional[TStateMetadata] = None,
     ) -> None:
         """Add multiple states to the policy representation with optional attributes."""
         ...
@@ -144,13 +150,13 @@ class PolicyRepresentation(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_all_state_metadata(self) -> Dict[State, StateMetadata]:
+    def get_all_state_metadata(self) -> Dict[State, TStateMetadata]:
         """Get metadata for all states."""
         ...
 
     @abc.abstractmethod
     def set_state_metadata(
-        self, state_to_state_metadata: Dict[State, StateMetadata]
+        self, state_to_state_metadata: Dict[State, TStateMetadata]
     ) -> None:
         """Set metadata for states."""
         ...
@@ -197,7 +203,7 @@ class PolicyRepresentation(abc.ABC):
         ...
 
 
-class GraphRepresentation(PolicyRepresentation):
+class GraphRepresentation(PolicyRepresentation[TStateMetadata]):
     """
     A policy representation implemented using a graph structure.
     States are represented as nodes, and transitions as edges.
@@ -351,8 +357,12 @@ class GraphRepresentation(PolicyRepresentation):
         def backend(self) -> nx.MultiDiGraph:
             return self._nx_graph
 
-    def __init__(self, graph_backend: str = "networkx"):
-        super().__init__()
+    def __init__(
+        self,
+        graph_backend: str = "networkx",
+        state_metadata_class: Type[TStateMetadata] = StateMetadata,
+    ):
+        super().__init__(state_metadata_class=state_metadata_class)
         # p(s) and p(s',a | s)
         self.graph: GraphRepresentation.Graph
         self.discretizer: Discretizer
@@ -397,22 +407,26 @@ class GraphRepresentation(PolicyRepresentation):
         """Check if a state exists in the policy representation."""
         return self.graph.has_node(state)
 
-    def get_state_data(self, state: State) -> StateMetadata:
+    def get_state_data(self, state: State) -> TStateMetadata:
         """Get data associated with a specific state."""
-        return StateMetadata.model_validate(self.graph.get_node(state))
+        return self.state_metadata_class.model_validate(self.graph.get_node(state))
 
     def add_state(
-        self, state: State, state_metadata: Optional[StateMetadata] = StateMetadata()
+        self, state: State, state_metadata: Optional[TStateMetadata] = None
     ) -> None:
         """Add a state to the policy representation with optional attributes."""
+        if state_metadata is None:
+            state_metadata = self.state_metadata_class()
         self.graph.add_node(state, **state_metadata.model_dump())
 
     def add_states_from(
         self,
         states: Collection[State],
-        state_metadata: Optional[StateMetadata] = StateMetadata(),
+        state_metadata: Optional[TStateMetadata] = None,
     ) -> None:
         """Add multiple states to the policy representation with optional attributes."""
+        if state_metadata is None:
+            state_metadata = self.state_metadata_class()
         self.graph.add_nodes_from(states, **state_metadata.model_dump())
 
     def add_transition(
@@ -459,18 +473,18 @@ class GraphRepresentation(PolicyRepresentation):
         """Check if a transition exists."""
         return self.graph.has_edge(from_state, to_state, action)
 
-    def get_all_state_metadata(self) -> Dict[State, StateMetadata]:
+    def get_all_state_metadata(self) -> Dict[State, TStateMetadata]:
         """Get metadata for all states."""
         return {
-            state: StateMetadata.model_validate(data)
+            state: self.state_metadata_class.model_validate(data)
             for state, data in self.graph.nodes(data=True)
         }
 
     def set_state_metadata(
-        self, state_to_state_metadata: Dict[State, StateMetadata]
+        self, state_to_state_metadata: Dict[State, TStateMetadata]
     ) -> None:
         """Set metadata for states."""
-        for metadata_key in StateMetadata.model_fields.keys():
+        for metadata_key in self.state_metadata_class.model_fields.keys():
             self.graph.set_node_attributes(
                 {
                     state: metadata.model_dump()[metadata_key]
@@ -762,7 +776,6 @@ class GraphRepresentation(PolicyRepresentation):
             if "{" in action_block and "}" in action_block:
                 attrs_str = action_block.split("{", 1)[1].rsplit("}", 1)[0]
                 action_id = int(action_block.split("a")[1].split(":")[0])
-                attrs = {}
                 for attr in attrs_str.split(","):
                     attr = attr.strip()
                     if not attr or ":" not in attr:
@@ -829,4 +842,6 @@ class GraphRepresentation(PolicyRepresentation):
         return representation
 
 
-class IntentionalPolicyGraphRepresentation(GraphRepresentation, IntentionMixin): ...
+class IntentionalPolicyGraphRepresentation(
+    GraphRepresentation[StateMetadata], IntentionMixin
+): ...

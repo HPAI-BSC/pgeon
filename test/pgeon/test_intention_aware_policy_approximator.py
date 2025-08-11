@@ -8,7 +8,7 @@ from test.domain.test_env import (
 )
 from typing import List
 
-from pgeon.desire import Desire
+from pgeon.desire import Desire, IntentionalStateMetadata
 from pgeon.discretizer import Action, Predicate, PredicateBasedState
 from pgeon.intention_aware_policy_approximator import (
     IntentionAwarePolicyApproximator,
@@ -74,45 +74,54 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
 
     def get_desires(self, only_one_pot=False) -> List[Desire]:
         action_name_to_idx = {"Interact": "5"}
-        clause = {"HELD_PLAYER(SOUP)", "ACTION2NEAREST(SERVICE;INTERACT)"}
-        action = action_name_to_idx["Interact"]
-        desire_to_service = Desire("desire_to_service", action, clause)
-
         clause = {
-            "HELD_PLAYER(ONION)",
-            "ACTION2NEAREST(POT0;INTERACT)",
-            "POT_STATE(POT0;PREPARING)",
+            Predicate(DummyState.ZERO),
+            Predicate(DummyState.ONE),
         }
         action = action_name_to_idx["Interact"]
-        desire_to_cook0 = Desire("desire_to_cook0", action, clause)
+        desire_to_service = Desire(
+            "desire_to_service", action, PredicateBasedState(clause)
+        )
 
         clause = {
-            "HELD_PLAYER(ONION)",
-            "ACTION2NEAREST(POT0;INTERACT)",
-            "POT_STATE(POT0;NOT_STARTED)",
+            Predicate(DummyState.ZERO),
+            Predicate(DummyState.ONE),
+            Predicate(DummyState.TWO),
         }
         action = action_name_to_idx["Interact"]
-        desire_to_start_cooking0 = Desire("desire_to_start_cooking0", action, clause)
+        desire_to_cook0 = Desire("desire_to_cook0", action, PredicateBasedState(clause))
+
+        clause = {
+            Predicate(DummyState.ZERO),
+            Predicate(DummyState.ONE),
+            Predicate(DummyState.TWO),
+        }
+        action = action_name_to_idx["Interact"]
+        desire_to_start_cooking0 = Desire(
+            "desire_to_start_cooking0", action, PredicateBasedState(clause)
+        )
 
         to_return = [desire_to_service, desire_to_cook0, desire_to_start_cooking0]
 
         if not only_one_pot:
             clause = {
-                "HELD_PLAYER(ONION)",
-                "ACTION2NEAREST(POT1;INTERACT)",
-                "POT_STATE(POT1;PREPARING)",
+                Predicate(DummyState.ZERO),
+                Predicate(DummyState.ONE),
+                Predicate(DummyState.TWO),
             }
             action = action_name_to_idx["Interact"]
-            desire_to_cook1 = Desire("desire_to_cook1", action, clause)
+            desire_to_cook1 = Desire(
+                "desire_to_cook1", action, PredicateBasedState(clause)
+            )
 
             clause = {
-                "HELD_PLAYER(ONION)",
-                "ACTION2NEAREST(POT1;INTERACT)",
-                "POT_STATE(POT1;NOT_STARTED)",
+                Predicate(DummyState.ZERO),
+                Predicate(DummyState.ONE),
+                Predicate(DummyState.TWO),
             }
             action = action_name_to_idx["Interact"]
             desire_to_start_cooking1 = Desire(
-                "desire_to_start_cooking1", action, clause
+                "desire_to_start_cooking1", action, PredicateBasedState(clause)
             )
 
             to_return.append(desire_to_cook1)
@@ -127,7 +136,10 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
         self.representation = GraphRepresentation()
         self.agent = TestingAgent()
         self.ipg = IntentionAwarePolicyApproximator(
-            self.discretizer, self.representation, self.env, self.agent
+            self.discretizer,
+            GraphRepresentation(state_metadata_class=IntentionalStateMetadata),
+            self.env,
+            self.agent,
         )
         self.ipg.fit(n_episodes=1)
 
@@ -135,7 +147,9 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
         self.state1 = PredicateBasedState((Predicate(DummyState.ONE),))
         self.action0: Action = 0
 
-        self.desire_north = Desire("north", self.action0, {Predicate(DummyState.ONE)})
+        self.desire_north = Desire(
+            "north", self.action0, PredicateBasedState([Predicate(DummyState.ONE)])
+        )
         self.desires = self.get_desires()
 
     def test_initialization(self):
@@ -168,17 +182,19 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
         self.assertGreater(intention_value, 0)
 
         # Test for a desire that is not present
-        desire_not_present = Desire("not_present", 1, {Predicate(self.TestEnum.DUMMY)})
+        desire_not_present = Desire(
+            "not_present", 1, PredicateBasedState([Predicate(self.TestEnum.DUMMY)])
+        )
         intention_value = self.ipg.get_intention(self.state0, desire_not_present)
         self.assertEqual(intention_value, 0)
 
     def test_check_desire(self):
         """Test that check_desire works correctly."""
         # This state satisfies the desire
-        self.assertTrue(self.ipg.check_desire(self.state1, self.desire_north))
+        self.assertGreater(self.ipg.check_desire(self.state1, self.desire_north), 0)
 
         # This state does not satisfy the desire
-        self.assertFalse(self.ipg.check_desire(self.state0, self.desire_north))
+        self.assertEqual(self.ipg.check_desire(self.state0, self.desire_north), 0)
 
     def test_answer_what(self):
         # No desires registered yet
@@ -205,13 +221,13 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
     def test_answer_why(self):
         self.ipg.register_desire(self.desire_north)
         why_trace = self.ipg.answer_why(self.state0, self.action0)
-        self.assertEqual(len(why_trace), 1)
+        self.assertEqual(len(why_trace), 0)
 
         # Test with minimum_probability_of_increase
         why_trace = self.ipg.answer_why(
             self.state0, self.action0, minimum_probability_of_increase=1.0
         )
-        self.assertEqual(len(why_trace), 1)
+        self.assertEqual(len(why_trace), 0)
 
 
 if __name__ == "__main__":

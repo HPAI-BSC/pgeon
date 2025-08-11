@@ -65,7 +65,7 @@ class PredicateBasedState(State):
         return False
 
     def __hash__(self):
-        return hash(tuple(self.predicates))
+        return hash(self.predicates)
 
     def __lt__(self, other):
         if not isinstance(other, PredicateBasedState):

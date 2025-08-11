@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import (
     Any,
     Dict,
+    Generic,
     List,
     Optional,
     Tuple,
@@ -26,19 +27,20 @@ from pgeon.discretizer import (
     State,
     Transition,
 )
-from pgeon.policy_representation import GraphRepresentation, PolicyRepresentation
+from pgeon.policy_representation import (
+    GraphRepresentation,
+    PolicyRepresentation,
+    TStateMetadata,
+)
 
 
-class Desire: ...
-
-
-class PolicyApproximator(abc.ABC):
+class PolicyApproximator(abc.ABC, Generic[TStateMetadata]):
     """Abstract base class for policy approximators."""
 
     def __init__(
         self,
         discretizer: Discretizer,
-        policy_representation: PolicyRepresentation,
+        policy_representation: PolicyRepresentation[TStateMetadata],
     ):
         self.discretizer = discretizer
         self.policy_representation = policy_representation
@@ -157,13 +159,13 @@ class PolicyApproximator(abc.ABC):
     # From agent and environment
 
 
-class OnlinePolicyApproximator(PolicyApproximator, abc.ABC):
+class OnlinePolicyApproximator(PolicyApproximator, Generic[TStateMetadata]):
     @abc.abstractmethod
     def fit(self, n_episodes: int) -> None: ...
 
 
 # From trajectories
-class OfflinePolicyApproximator(PolicyApproximator):
+class OfflinePolicyApproximator(PolicyApproximator, Generic[TStateMetadata]):
     @staticmethod
     def from_nodes_and_edges(
         path_nodes: str,
@@ -222,7 +224,9 @@ class OfflinePolicyApproximator(PolicyApproximator):
         pass
 
 
-class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
+class PolicyApproximatorFromBasicObservation(
+    OnlinePolicyApproximator[TStateMetadata], Generic[TStateMetadata]
+):
     """
     Policy approximator that approximates the policy from basic observations,
     given an agent and an environment.
@@ -231,7 +235,7 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
     def __init__(
         self,
         discretizer: Discretizer,
-        policy_representation: PolicyRepresentation,
+        policy_representation: PolicyRepresentation[TStateMetadata],
         environment: Env,
         agent: Agent,
     ):

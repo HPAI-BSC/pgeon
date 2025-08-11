@@ -27,6 +27,7 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.state3 = PredicateBasedState((Predicate(DummyState.THREE),))
 
         self.action0: Action = 0
+        self.action1: Action = 1
         self.representation = GraphRepresentation()
 
         self.tmp_dir = Path(".tmp")
@@ -65,6 +66,32 @@ class TestPolicyRepresentation(unittest.TestCase):
         )
         self.assertFalse(self.representation.has_state(self.state1))
         self.assertFalse(self.representation.has_state(self.state2))
+
+    def test_add_state_with_custom_state_metadata_class(self):
+        """Test initialization of policy representation with a custom state metadata class."""
+
+        class CustomStateMetadata(StateMetadata):
+            custom_attribute: int = 0
+
+        self.representation_with_custom_state_metadata = GraphRepresentation(
+            state_metadata_class=CustomStateMetadata
+        )
+        self.representation_with_custom_state_metadata.add_state(
+            self.state0, CustomStateMetadata(custom_attribute=1)
+        )
+        self.assertEqual(
+            len(self.representation_with_custom_state_metadata.get_all_states()), 1
+        )
+        self.assertEqual(
+            len(self.representation_with_custom_state_metadata.get_all_transitions()),
+            0,
+        )
+        self.assertEqual(
+            self.representation_with_custom_state_metadata.get_state_data(
+                self.state0
+            ).custom_attribute,
+            1,
+        )
 
     def test_add_states_from(self):
         """Test adding multiple states to the representation."""
