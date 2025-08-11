@@ -292,106 +292,17 @@ class IntentionAwarePolicyGraph(
             )
             return 0
 
-    def check_desire(
-        self,
-        node: Set[Predicate],
-        desire: Desire,
-    ):
-        # Returns None if desire is not satisfied. Else, returns probability of fulfilling desire
-        #   ie: executing the action when in Node
-        desire_clause_satisfied = True
-        for atom in desire.clause:
-            desire_clause_satisfied = desire_clause_satisfied and self.atom_in_state(
-                node, atom
-            )
-            if not desire_clause_satisfied:
-                return None
-        return self.get_action_probability(node, desire.action_idx)
-
-    def update_intention(
-        self,
-        node: Set[Predicate],
-        desire: Desire,
-        probability: float,
-    ):
-        if "intention" not in self.policy_representation.get_node(node):
-            self.policy_representation.get_node(node)["intention"] = {}
-        current_intention_val = self.policy_representation.get_node(node)[
-            "intention"
-        ].get(desire, 0)
-        self.policy_representation.get_node(node)["intention"][desire] = (
-            current_intention_val + probability
-        )
-
-    def propagate_intention(
-        self,
-        node: Set[Predicate],
-        desire: Desire,
-        probability,
-        stop_criterion=1e-4,
-    ):
-        self.update_intention(node, desire, probability)
-        for coincider in self.policy_representation.get_predecessors(node):
-            if (
-                self.check_desire(
-                    coincider,
-                    desire,
-                )
-                is None
-            ):
-                successors = self.policy_representation.get_successors(coincider)
-                coincider_transitions: List[Dict[Set[Predicate], float]] = [
-                    {
-                        successor: self.get_prob(
-                            self.policy_representation.get_transition_data(
-                                coincider, successor, action_id
-                            )
-                        )
-                        for successor in successors
-                    }
-                    for action_id in self.discretizer.all_actions()
-                ]
-            else:
-                successors = self.policy_representation.get_successors(coincider)
-                # If coincider can fulfill desire themselves, do not propagate it through the action_idx branch
-                coincider_transitions: List[Dict[Set[Predicate], float]] = [
-                    {
-                        successor: self.get_prob(
-                            self.policy_representation.get_transition_data(
-                                coincider, successor, action_id
-                            )
-                        )
-                        for successor in successors
-                    }
-                    for action_id in self.discretizer.all_actions()
-                    if action_id != desire.action_idx
-                ]
-
-            prob_of_transition = 0
-            for action_transitions in coincider_transitions:
-                prob_of_transition += action_transitions.get(node, 0)
-            # self.transitions = {n_idx: {action1:{dest_node1: P(dest1, action1|n_idx), ...}
-
-            new_coincider_intention_value = prob_of_transition * probability
-            if new_coincider_intention_value >= stop_criterion:
-                try:
-                    coincider.propagate_intention(desire, new_coincider_intention_value)
-                except RecursionError:
-                    print(
-                        "Maximum recursion reach, skipping branch with intention of",
-                        new_coincider_intention_value,
-                    )
-
     def register_desire(self, desire: Desire, stop_criterion=1e-4):
         self.registered_desires.append(desire)
         for node in self.policy_representation.get_all_states():
-            if "intention" not in self.policy_representation.graph.get_node(node):
-                self.policy_representation.graph.get_node(node)["intention"] = {}
-            self.policy_representation.graph.get_node(node)["intention"][desire] = 0
+            node_data = self.policy_representation.graph.get_node(node)
+            if "intention" not in node_data:
+                node_data["intention"] = {}
+            node_data["intention"][desire] = 0.0
 
         for node in self.policy_representation.get_all_states():
             p = self.check_desire(node, desire)
-            if p is not None:
+            if p > 0:
                 self.propagate_intention(node, desire, p, stop_criterion)
 
     def get_possible_actions(self, s: StateID) -> List[ActionID]:
@@ -449,7 +360,7 @@ class IntentionAwarePolicyGraph(
 
     def get_intention(self, s: StateID, desire: Desire):
         try:
-            node_data = self.policy_representation.graph.nodes()[s]
+            node_data = self.policy_representation.graph.get_node(s)
             if "intention" in node_data and desire in node_data["intention"]:
                 return node_data["intention"][desire]
             return 0
@@ -458,19 +369,19 @@ class IntentionAwarePolicyGraph(
 
     def get_intentions(self, s: StateID) -> Dict[Desire, float]:
         try:
-            return self.policy_representation.graph.nodes()[s]["intention"]
+            return self.policy_representation.graph.get_node(s)["intention"]
         except KeyError:
             return dict()
 
     def _set_intention(self, s, desire, new_int):
         try:
-            self.policy_representation.graph.nodes()[s]["intention"][desire] = new_int
+            self.policy_representation.graph.get_node(s)["intention"][desire] = new_int
         except KeyError:
-            self.policy_representation.graph.nodes()[s]["intention"] = dict()
-            self.policy_representation.graph.nodes()[s]["intention"][desire] = new_int
+            self.policy_representation.graph.get_node(s)["intention"] = dict()
+            self.policy_representation.graph.get_node(s)["intention"][desire] = new_int
 
     def _prob_s(self, s: StateID):
-        return self.policy_representation.graph.nodes()[s].probability
+        return self.policy_representation.graph.get_node(s).probability
 
     def _prob_s_prima_a_given_s(self, s_prima: StateID, a: ActionID, given_s: StateID):
         # Assuming the 's' is always in predicates format for simplicity
@@ -559,7 +470,7 @@ class IntentionAwarePolicyGraph(
         return sum(prob)
 
     def stateID_to_node(self, s: StateID) -> StateID:
-        return self.policy_representation.graph.nodes()[s]
+        return self.policy_representation.graph.get_node(s)
 
     def propagate_intention(
         self,
@@ -569,37 +480,13 @@ class IntentionAwarePolicyGraph(
         stop_criterion: float,
     ):
         # TODO: This should eventually be a method of AbstractIPG
-        desire_name = desire.name
         self._update_intention(node, desire, propagated_intention)
 
-        parents = set(
-            [
-                orig
-                for orig, _ in self.policy_representation.graph.backend.in_edges(node)
-            ]
-        )
-
-        for parent in parents:
-            if self.check_desire(parent, desire) is None:
-                prob_transition = self.prob(ProbQuery(s_prima=node, given_s=parent))
-            else:
-                # If coincider can fulfill desire themselves, do not propagate it through the action_idx branch
-                # (as that would compute Expected #desires, instead of desire probability, and that can be >1).
-
-                prob_transition = self.prob(ProbQuery(s_prima=node, given_s=parent))
-                if desire.type == "achievement":
-                    # (We want to remove from P(s' |s) all P(s',a=Desired action | s)
-                    prob_transition_through_action = self.prob(
-                        ProbQuery(s_prima=node, a=desire.action_idx, given_s=parent)
-                    )
-                    prob_transition -= prob_transition_through_action
-                else:
-                    raise NotImplementedError
-
+        for parent in self.policy_representation.get_predecessors(node):
+            prob_transition = self.prob(ProbQuery(s_prima=node, given_s=parent))
             new_coincider_intention_value = prob_transition * propagated_intention
 
             if new_coincider_intention_value >= stop_criterion:
-                # avoid infinite loops
                 try:
                     self.propagate_intention(
                         parent, desire, new_coincider_intention_value, stop_criterion
@@ -611,8 +498,8 @@ class IntentionAwarePolicyGraph(
                     )
 
     def _update_intention(self, node, desire, intention):
-        graph_node = self.policy_representation.graph.nodes()[node]
-        current_intention_val = graph_node["intention"][desire]
+        graph_node = self.policy_representation.graph.get_node(node)
+        current_intention_val = graph_node["intention"].get(desire, 0.0)
         graph_node["intention"][desire] = current_intention_val + intention
 
     def get_action_probability(self, state: StateID) -> Dict[ActionID, float]:
@@ -624,12 +511,10 @@ class IntentionAwarePolicyGraph(
 
     def answer_what(self, state: State) -> List[Tuple[Goal, float]]:
         """Answers the question: What are the intentions in a given state?"""
-        return [
-            (d, v)
-            for d, v in self.policy_representation.get_state_attributes("intention")[
-                state
-            ].items()
-        ]
+        intentions = self.policy_representation.get_state_attributes("intention")
+        if state in intentions:
+            return [(d, v) for d, v in intentions[state].items()]
+        return []
 
     def answer_how(
         self,

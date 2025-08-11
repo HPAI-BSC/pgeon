@@ -164,6 +164,13 @@ class PolicyRepresentation(abc.ABC):
         ...
 
     @abc.abstractmethod
+    def get_predecessors(
+        self, state: StateRepresentation
+    ) -> Collection[StateRepresentation]:
+        """Get all predecessors of a state."""
+        ...
+
+    @abc.abstractmethod
     def clear(self) -> None:
         """Clear all states and transitions."""
         ...
@@ -240,6 +247,9 @@ class GraphRepresentation(PolicyRepresentation):
         def out_edges(
             self, node: StateRepresentation, data: bool = False
         ) -> Iterator: ...
+
+        @abc.abstractmethod
+        def predecessors(self, node: StateRepresentation) -> Iterator: ...
 
         @abc.abstractmethod
         def get_node_attributes(
@@ -325,6 +335,9 @@ class GraphRepresentation(PolicyRepresentation):
             self, node: StateRepresentation, data: bool = False
         ) -> nx.reportviews.OutMultiEdgeView:
             return self._nx_graph.out_edges(node, data=data)
+
+        def predecessors(self, node: StateRepresentation) -> Iterator:
+            return self._nx_graph.predecessors(node)
 
         def get_node_attributes(
             self, attribute_name: str
@@ -471,6 +484,12 @@ class GraphRepresentation(PolicyRepresentation):
     ) -> Collection:
         """Get all transitions originating from a state."""
         return list(self.graph.out_edges(state, data=include_data))
+
+    def get_predecessors(
+        self, state: StateRepresentation
+    ) -> Collection[StateRepresentation]:
+        """Get all predecessors of a state."""
+        return list(self.graph.predecessors(state))
 
     def clear(self) -> None:
         """Clear all states and transitions."""

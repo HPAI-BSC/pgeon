@@ -24,10 +24,10 @@ This document outlines the plan to refactor the `pgeon` codebase to improve modu
 - [x] Refactor `ipg_xai.py` for better integration.
   - [x] Update `IPG_XAI_analyser` to use `PolicyApproximator` and `PolicyRepresentation` instead of `PolicyGraph`.
   - [x] Ensure type consistency with the new abstractions.
-- [ ] Merge `IPG_XAI_analyser` into `IntentionAwarePolicyGraph`.
-    - [ ] Move `answer_what`, `answer_how`, and `answer_why` methods from `IPG_XAI_analyser` to `IntentionAwarePolicyGraph`.
-    - [ ] Delete `src/pgeon/ipg_xai.py`.
-    - [ ] Update `test/pgeon/test_ipg_xai.py` to reflect the changes.
+- [x] Merge `IPG_XAI_analyser` into `IntentionAwarePolicyGraph`.
+  - [x] Move `answer_what`, `answer_how`, and `answer_why` methods from `IPG_XAI_analyser` to `IntentionAwarePolicyGraph`.
+  - [x] Delete `src/pgeon/ipg_xai.py`.
+  - [x] Update `test/pgeon/test_ipg_xai.py` to reflect the changes.
 
 ## 3. Testing
 
