@@ -1,18 +1,21 @@
 import unittest
 from enum import Enum
+from test.domain.cartpole import (
+    Action,
+)
 from test.domain.test_env import State, TestingAgent, TestingDiscretizer, TestingEnv
 from typing import List
 
 from pgeon.desire import Desire
 from pgeon.discretizer import Predicate, PredicateBasedStateRepresentation
-from pgeon.intention_aware_policy_graph import IntentionAwarePolicyGraph
-from pgeon.policy_representation import Action, GraphRepresentation
+from pgeon.intention_aware_policy_approximator import (
+    IntentionAwarePolicyApproximator,
+)
+from pgeon.policy_representation import GraphRepresentation
 
-# action_idx_to_name = {'0': 'UP', '1': 'DOWN', '2': 'RIGHT', '3': 'LEFT', '4': 'STAY', '5': 'Interact'}
 
-
-class TestIntentionAwarePolicyGraph(unittest.TestCase):
-    """Tests for the IntentionAwarePolicyGraph class."""
+class TestIntentionAwarePolicyApproximator(unittest.TestCase):
+    """Tests for the IntentionAwarePolicyApproximator class."""
 
     class TestEnum(Enum):
         DUMMY = 0
@@ -71,7 +74,7 @@ class TestIntentionAwarePolicyGraph(unittest.TestCase):
         self.discretizer = TestingDiscretizer()
         self.representation = GraphRepresentation()
         self.agent = TestingAgent()
-        self.ipg = IntentionAwarePolicyGraph(
+        self.ipg = IntentionAwarePolicyApproximator(
             self.discretizer, self.representation, self.env, self.agent
         )
         self.ipg.fit(n_episodes=1)

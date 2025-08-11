@@ -72,9 +72,19 @@ class ProbQuery:
         ), "given_do_a requires setting s_prima"
 
 
-class AbstractIntentionAwarePolicyGraph(abc.ABC):
-    def __init__(self):
+class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
+    def __init__(
+        self,
+        discretizer: Discretizer,
+        policy_representation: PolicyRepresentation,
+        environment: gym.Env,
+        agent: Agent,
+        verbose=False,
+    ):
+        super().__init__(discretizer, policy_representation, environment, agent)
         self.registered_desires: List[Desire] = list()
+        self.verbose = verbose
+        self.c_threshold = 0.5
 
     def prob(self, query: ProbQuery) -> float:
         s, a, s_prima, given_s, given_a, given_do_a = (
@@ -247,9 +257,7 @@ class AbstractIntentionAwarePolicyGraph(abc.ABC):
         pass
 
 
-class IntentionAwarePolicyGraph(
-    PolicyApproximatorFromBasicObservation, AbstractIntentionAwarePolicyGraph
-):
+class IntentionAwarePolicyApproximator(PolicyApproximatorFromBasicObservation):
     def __init__(
         self,
         discretizer: Discretizer,
@@ -259,11 +267,36 @@ class IntentionAwarePolicyGraph(
         verbose=False,
     ):
         super().__init__(discretizer, policy_representation, environment, agent)
-        self.registered_desires: List[Desire] = (
-            list()
-        )  # TODO: temp fix since AbstractIPG init is not callable here
+        self.registered_desires: List[Desire] = list()
         self.verbose = verbose
         self.c_threshold = 0.5
+
+    def prob(self, query: ProbQuery) -> float:
+        s, a, s_prima, given_s, given_a, given_do_a = (
+            query.s,
+            query.a,
+            query.s_prima,
+            query.given_s,
+            query.given_a,
+            query.given_do_a,
+        )
+        if s is not None:
+            return self._prob_s(s)
+        if a is not None:
+            if s_prima is not None:
+                return self._prob_s_prima_a_given_s(s_prima, a, given_s)
+            else:
+                return self._prob_a_given_s(a, given_s)
+        elif given_a is not None:
+            return self._prob_s_prima_given_a_s(s_prima, given_a, given_s)
+        elif given_do_a is not None:
+            return self._prob_s_prima_given_do_a_given_s(s_prima, given_a, given_s)
+        else:
+            return self._prob_s_prima_given_s(s_prima, given_s)
+
+    def register_all_desires(self, desires: List[Desire], stop_criterion: float = 1e-4):
+        for desire in desires:
+            self.register_desire(desire, stop_criterion)
 
     def find_intentions(self, desires: Set[Desire], commitment_threshold: float):
         self.register_all_desires(desires)
@@ -379,7 +412,7 @@ class IntentionAwarePolicyGraph(
         try:
             prob = [
                 Transition.model_validate(data).probability
-                for _, _, data in self.policy_representation.get_outgoing_transitions(
+                for _, dest, data in self.policy_representation.get_outgoing_transitions(
                     given_s
                 )
                 if a == Transition.model_validate(data).action and dest == s_prima

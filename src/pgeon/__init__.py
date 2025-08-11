@@ -6,7 +6,7 @@ from .discretizer import (
     PredicateBasedStateRepresentation,
 )
 from .environment import Environment
-from .intention_aware_policy_graph import IntentionAwarePolicyGraph
+from .intention_aware_policy_approximator import IntentionAwarePolicyApproximator
 from .policy_approximator import (
     OfflinePolicyApproximator,
     PolicyApproximator,
@@ -27,7 +27,7 @@ __all__ = [
     "Environment",
     "GraphRepresentation",
     "IntentionalPolicyGraphRepresentation",
-    "IntentionAwarePolicyGraph",
+    "IntentionAwarePolicyApproximator",
     "OfflinePolicyApproximator",
     "PolicyApproximator",
     "PolicyApproximatorFromBasicObservation",

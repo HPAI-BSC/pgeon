@@ -24,8 +24,8 @@ This document outlines the plan to refactor the `pgeon` codebase to improve modu
 - [x] Refactor `ipg_xai.py` for better integration.
   - [x] Update `IPG_XAI_analyser` to use `PolicyApproximator` and `PolicyRepresentation` instead of `PolicyGraph`.
   - [x] Ensure type consistency with the new abstractions.
-- [x] Merge `IPG_XAI_analyser` into `IntentionAwarePolicyGraph`.
-  - [x] Move `answer_what`, `answer_how`, and `answer_why` methods from `IPG_XAI_analyser` to `IntentionAwarePolicyGraph`.
+- [x] Merge `IPG_XAI_analyser` into `IntentionAwarePolicyApproximator`.
+  - [x] Move `answer_what`, `answer_how`, and `answer_why` methods from `IPG_XAI_analyser` to `IntentionAwarePolicyApproximator`.
   - [x] Delete `src/pgeon/ipg_xai.py`.
   - [x] Update `test/pgeon/test_ipg_xai.py` to reflect the changes.
 
@@ -34,9 +34,12 @@ This document outlines the plan to refactor the `pgeon` codebase to improve modu
 - [x] Update tests to reflect refactoring.
   - [x] Remove or update tests for deprecated files (`test_policy_graph.py`, `test_intention_introspector.py`).
 - [x] Enhance tests for `test_policy_approximator.py` and `test_policy_representation.py`.
-- [ ] Add new tests to improve coverage.
-  - [ ] Write unit tests for new or modified functionality.
+- [x] Add new tests to improve coverage.
+  - [x] Write unit tests for new or modified functionality.
   - [ ] Implement end-to-end tests using the `cartpole` environment.
+- [x] Refactor and restructure `test_intention_aware_policy_graph.py`
+- [x] Add granular tests for `IntentionAwarePolicyApproximator` methods
+- [x] Enhance existing `answer_*` tests for more complex scenarios
 
 ## 4. Finalization
 
