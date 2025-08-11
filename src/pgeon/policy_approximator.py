@@ -117,14 +117,21 @@ class PolicyApproximator(abc.ABC):
     def fit(self): ...
 
     def _normalize(self) -> None:
-        weights = self.policy_representation.get_state_attributes("frequency")
-        total_frequency = sum(weights.values())
+        state_to_state_metadata = self.policy_representation.get_all_state_metadata()
+        total_frequency = sum(
+            state_metadata.frequency
+            for state_metadata in state_to_state_metadata.values()
+        )
         if total_frequency == 0:
             return
 
-        self.policy_representation.set_state_attributes(
-            {state: weights[state] / total_frequency for state in weights},
-            "probability",
+        self.policy_representation.set_state_metadata(
+            {
+                state: state_metadata.model_copy(
+                    update={"probability": state_metadata.frequency / total_frequency}
+                )
+                for state, state_metadata in state_to_state_metadata.items()
+            },
         )
 
         for state in self.policy_representation.get_all_states():
@@ -264,14 +271,17 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
             for state in set(states_in_trajectory)
             if not self.policy_representation.has_state(PredicateBasedState(state))
         }
-        self.policy_representation.add_states_from(
-            all_new_states_in_trajectory, frequency=0
-        )
+        self.policy_representation.add_states_from(all_new_states_in_trajectory)
 
         for state in states_in_trajectory:
             state_representation = PredicateBasedState(state)
-            node_data = self.policy_representation.graph.get_node(state_representation)
-            node_data["frequency"] = node_data.get("frequency", 0) + 1
+            state_metadata = self.policy_representation.get_state_data(
+                state_representation
+            )
+            state_metadata.frequency += 1
+            self.policy_representation.set_state_metadata(
+                {state_representation: state_metadata}
+            )
 
         pointer = 0
         while (pointer + 1) < len(trajectory):

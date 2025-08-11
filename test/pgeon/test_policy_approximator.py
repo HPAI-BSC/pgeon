@@ -13,7 +13,7 @@ from pgeon.policy_approximator import (
     OfflinePolicyApproximator,
     PolicyApproximatorFromBasicObservation,
 )
-from pgeon.policy_representation import Action
+from pgeon.policy_representation import Action, StateMetadata
 
 
 class TestPolicyApproximator(unittest.TestCase):
@@ -223,8 +223,7 @@ class TestPolicyApproximator(unittest.TestCase):
 
         self.representation.add_states_from(
             [self.state0, self.state1, self.state2, self.state3],
-            frequency=1,
-            probability=0.25,
+            StateMetadata(frequency=1, probability=0.25),
         )
 
         transitions = [

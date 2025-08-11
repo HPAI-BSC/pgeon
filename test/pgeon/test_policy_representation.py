@@ -1,12 +1,13 @@
 import unittest
 from pathlib import Path
 from test.domain.test_env import DummyState, TestingDiscretizer, TestingEnv
-from typing import Dict, List, Tuple
+from typing import List, Tuple
 
 from pgeon import GraphRepresentation, Predicate
 from pgeon.discretizer import (
     PredicateBasedState,
     State,
+    StateMetadata,
     Transition,
 )
 from pgeon.policy_representation import Action
@@ -44,15 +45,32 @@ class TestPolicyRepresentation(unittest.TestCase):
 
     def test_add_state(self):
         """Test adding states to the representation."""
-        self.representation.add_state(self.state0, frequency=1, probability=0.25)
+        self.representation.add_state(
+            self.state0, StateMetadata(frequency=1, probability=0.25)
+        )
         self.assertTrue(self.representation.has_state(self.state0))
+        self.assertEqual(
+            self.representation.get_state_data(self.state0),
+            StateMetadata(frequency=1, probability=0.25),
+        )
+        self.assertFalse(self.representation.has_state(self.state1))
+        self.assertFalse(self.representation.has_state(self.state2))
+
+    def test_add_state_no_metadata(self):
+        """Test adding states to the representation."""
+        self.representation.add_state(self.state0)
+        self.assertTrue(self.representation.has_state(self.state0))
+        self.assertEqual(
+            self.representation.get_state_data(self.state0), StateMetadata()
+        )
         self.assertFalse(self.representation.has_state(self.state1))
         self.assertFalse(self.representation.has_state(self.state2))
 
     def test_add_states_from(self):
         """Test adding multiple states to the representation."""
         self.representation.add_states_from(
-            [self.state1, self.state2, self.state3], frequency=2, probability=0.25
+            [self.state1, self.state2, self.state3],
+            StateMetadata(frequency=2, probability=0.25),
         )
 
         self.assertTrue(self.representation.has_state(self.state1))
@@ -60,15 +78,16 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertTrue(self.representation.has_state(self.state3))
         self.assertEqual(len(self.representation.get_all_states()), 3)
 
-        state_attrs = self.representation.get_state_attributes("frequency")
-        self.assertEqual(state_attrs[self.state1], 2)
-        self.assertEqual(state_attrs[self.state2], 2)
-        self.assertEqual(state_attrs[self.state3], 2)
+        state_metadata = self.representation.get_all_state_metadata()
+        self.assertEqual(state_metadata[self.state1].frequency, 2)
+        self.assertEqual(state_metadata[self.state2].frequency, 2)
+        self.assertEqual(state_metadata[self.state3].frequency, 2)
 
     def test_add_transition(self):
         """Test adding transitions to the representation."""
         self.representation.add_states_from(
-            [self.state0, self.state1, self.state2, self.state3], frequency=1
+            [self.state0, self.state1, self.state2, self.state3],
+            StateMetadata(frequency=1),
         )
 
         self.representation.add_transition(
@@ -151,8 +170,7 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.maxDiff = None
         self.representation.add_states_from(
             [self.state0, self.state1, self.state2, self.state3],
-            frequency=1,
-            probability=0.25,
+            StateMetadata(frequency=1, probability=0.25),
         )
         self.representation.add_transition(
             self.state0,
@@ -168,12 +186,12 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertEqual(len(loaded_representation.get_all_states()), 4)
         self.assertEqual(len(loaded_representation.get_all_transitions()), 1)
         self.assertEqual(
-            loaded_representation.get_state_attributes("frequency"),
-            self.representation.get_state_attributes("frequency"),
+            loaded_representation.get_all_state_metadata(),
+            self.representation.get_all_state_metadata(),
         )
         self.assertEqual(
-            loaded_representation.get_state_attributes("probability"),
-            self.representation.get_state_attributes("probability"),
+            loaded_representation.get_all_state_metadata(),
+            self.representation.get_all_state_metadata(),
         )
         self.assertEqual(
             loaded_representation.get_transition_data(
@@ -203,8 +221,7 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.maxDiff = None
         self.representation.add_states_from(
             [self.state0, self.state1, self.state2, self.state3],
-            frequency=1,
-            probability=0.25,
+            StateMetadata(frequency=1, probability=0.25),
         )
         self.representation.add_transition(
             self.state0,
@@ -220,12 +237,12 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertEqual(len(loaded_representation.get_all_states()), 4)
         self.assertEqual(len(loaded_representation.get_all_transitions()), 1)
         self.assertEqual(
-            loaded_representation.get_state_attributes("frequency"),
-            self.representation.get_state_attributes("frequency"),
+            loaded_representation.get_all_state_metadata(),
+            self.representation.get_all_state_metadata(),
         )
         self.assertEqual(
-            loaded_representation.get_state_attributes("probability"),
-            self.representation.get_state_attributes("probability"),
+            loaded_representation.get_all_state_metadata(),
+            self.representation.get_all_state_metadata(),
         )
         self.assertEqual(
             loaded_representation.get_transition_data(
@@ -330,26 +347,30 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertIn(self.state1, transitions[self.action0])
         self.assertIn(self.state2, transitions[1])
 
-    def test_get_state_attributes(self):
+    def test_get_state_metadata(self):
         """Test getting and setting state attributes."""
         self.representation.add_states_from(
             [self.state0, self.state1, self.state2, self.state3],
-            frequency=1,
-            probability=0.25,
+            StateMetadata(frequency=1, probability=0.25),
         )
 
-        attrs = self.representation.get_state_attributes("frequency")
-        self.assertEqual(len(attrs), 4)
-        self.assertEqual(attrs[self.state0], 1)
-        self.assertEqual(attrs[self.state1], 1)
+        state_to_state_metadata = self.representation.get_all_state_metadata()
+        self.assertEqual(len(state_to_state_metadata), 4)
+        self.assertEqual(state_to_state_metadata[self.state0].frequency, 1)
+        self.assertEqual(state_to_state_metadata[self.state1].frequency, 1)
 
-        new_attrs: Dict[State, int] = {self.state0: 10, self.state1: 20}
-        self.representation.set_state_attributes(new_attrs, "frequency")
+        state_to_state_metadata = self.representation.get_all_state_metadata()
+        updated_state_metadata = {
+            state: state_to_state_metadata[state].model_copy(update={"frequency": 10})
+            for state, state_metadata in state_to_state_metadata.items()
+            if state == self.state0 or state == self.state1
+        }
+        self.representation.set_state_metadata(updated_state_metadata)
 
-        attrs = self.representation.get_state_attributes("frequency")
-        self.assertEqual(attrs[self.state0], 10)
-        self.assertEqual(attrs[self.state1], 20)
-        self.assertEqual(attrs[self.state2], 1)  # Unchanged
+        state_metadata = self.representation.get_all_state_metadata()
+        self.assertEqual(state_metadata[self.state0].frequency, 10)
+        self.assertEqual(state_metadata[self.state1].frequency, 10)
+        self.assertEqual(state_metadata[self.state2].frequency, 1)  # Unchanged
 
     def test_get_outgoing_transitions(self):
         """Test getting outgoing transitions from a state."""
@@ -381,8 +402,7 @@ class TestPolicyRepresentation(unittest.TestCase):
 
         self.representation.add_states_from(
             [self.state0, self.state1, self.state2, self.state3],
-            frequency=1,
-            probability=0.25,
+            StateMetadata(frequency=1, probability=0.25),
         )
 
         transitions: List[Tuple[State, State, Action]] = [
@@ -479,8 +499,7 @@ class TestPolicyRepresentation(unittest.TestCase):
 
         self.representation.add_states_from(
             [self.state0, self.state1, self.state2, self.state3],
-            frequency=1,
-            probability=0.25,
+            StateMetadata(frequency=1, probability=0.25),
         )
 
         transitions: List[Tuple[State, State, Action]] = [

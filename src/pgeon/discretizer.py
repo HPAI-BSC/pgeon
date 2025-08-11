@@ -83,6 +83,11 @@ class Transition(BaseModel):
     frequency: int = 0
 
 
+class StateMetadata(BaseModel):
+    probability: float = 0.0
+    frequency: int = 0
+
+
 class Discretizer(metaclass=abc.ABCMeta):
     @classmethod
     def __subclasshook__(cls, subclass):

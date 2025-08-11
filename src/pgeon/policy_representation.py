@@ -19,6 +19,7 @@ from pgeon.discretizer import (
     Action,
     Discretizer,
     State,
+    StateMetadata,
     Transition,
 )
 
@@ -82,17 +83,23 @@ class PolicyRepresentation(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_state_data(self, state: State) -> Dict[str, Any]:
+    def get_state_data(self, state: State) -> StateMetadata:
         """Get data associated with a specific state."""
         ...
 
     @abc.abstractmethod
-    def add_state(self, state: State, **attributes) -> None:
+    def add_state(
+        self, state: State, state_metadata: Optional[StateMetadata] = StateMetadata()
+    ) -> None:
         """Add a state to the policy representation with optional attributes."""
         ...
 
     @abc.abstractmethod
-    def add_states_from(self, states: Collection[State], **attributes) -> None:
+    def add_states_from(
+        self,
+        states: Collection[State],
+        state_metadata: Optional[StateMetadata] = StateMetadata(),
+    ) -> None:
         """Add multiple states to the policy representation with optional attributes."""
         ...
 
@@ -137,15 +144,15 @@ class PolicyRepresentation(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_state_attributes(self, attribute_name: str) -> Dict[State, Any]:
-        """Get attributes for all states by name."""
+    def get_all_state_metadata(self) -> Dict[State, StateMetadata]:
+        """Get metadata for all states."""
         ...
 
     @abc.abstractmethod
-    def set_state_attributes(
-        self, attributes: Dict[State, Any], attribute_name: str
+    def set_state_metadata(
+        self, state_to_state_metadata: Dict[State, StateMetadata]
     ) -> None:
-        """Set attributes for states."""
+        """Set metadata for states."""
         ...
 
     @abc.abstractmethod
@@ -390,21 +397,23 @@ class GraphRepresentation(PolicyRepresentation):
         """Check if a state exists in the policy representation."""
         return self.graph.has_node(state)
 
-    def get_state_data(self, state: State) -> Dict[str, Any]:
+    def get_state_data(self, state: State) -> StateMetadata:
         """Get data associated with a specific state."""
-        return self.graph.get_node(state)
+        return StateMetadata.model_validate(self.graph.get_node(state))
 
-    def add_state(self, state: State, **attributes) -> None:
+    def add_state(
+        self, state: State, state_metadata: Optional[StateMetadata] = StateMetadata()
+    ) -> None:
         """Add a state to the policy representation with optional attributes."""
-        if "frequency" not in attributes:
-            attributes["frequency"] = 0
-        self.graph.add_node(state, **attributes)
+        self.graph.add_node(state, **state_metadata.model_dump())
 
-    def add_states_from(self, states: Collection[State], **attributes) -> None:
+    def add_states_from(
+        self,
+        states: Collection[State],
+        state_metadata: Optional[StateMetadata] = StateMetadata(),
+    ) -> None:
         """Add multiple states to the policy representation with optional attributes."""
-        if "frequency" not in attributes:
-            attributes["frequency"] = 0
-        self.graph.add_nodes_from(states, **attributes)
+        self.graph.add_nodes_from(states, **state_metadata.model_dump())
 
     def add_transition(
         self,
@@ -450,15 +459,25 @@ class GraphRepresentation(PolicyRepresentation):
         """Check if a transition exists."""
         return self.graph.has_edge(from_state, to_state, action)
 
-    def get_state_attributes(self, attribute_name: str) -> Dict[State, Any]:
-        """Get attributes for all states by name."""
-        return self.graph.get_node_attributes(attribute_name)
+    def get_all_state_metadata(self) -> Dict[State, StateMetadata]:
+        """Get metadata for all states."""
+        return {
+            state: StateMetadata.model_validate(data)
+            for state, data in self.graph.nodes(data=True)
+        }
 
-    def set_state_attributes(
-        self, attributes: Dict[State, Any], attribute_name: str
+    def set_state_metadata(
+        self, state_to_state_metadata: Dict[State, StateMetadata]
     ) -> None:
-        """Set attributes for states."""
-        self.graph.set_node_attributes(attributes, attribute_name)
+        """Set metadata for states."""
+        for metadata_key in StateMetadata.model_fields.keys():
+            self.graph.set_node_attributes(
+                {
+                    state: metadata.model_dump()[metadata_key]
+                    for state, metadata in state_to_state_metadata.items()
+                },
+                metadata_key,
+            )
 
     def get_all_states(self) -> Collection[State]:
         """Get all states in the policy representation."""
@@ -724,8 +743,10 @@ class GraphRepresentation(PolicyRepresentation):
                 state = discretizer.str_to_state(attrs["value"])
                 representation.add_state(
                     state,
-                    probability=attrs.get("probability", 0),
-                    frequency=attrs.get("frequency", 0),
+                    StateMetadata(
+                        probability=attrs.get("probability", 0),
+                        frequency=attrs.get("frequency", 0),
+                    ),
                 )
                 node_info[node_id] = state
                 return i, node_id
