@@ -228,14 +228,28 @@ class TestPolicyApproximator(unittest.TestCase):
         )
 
         transitions = [
-            (self.state0, self.state1, self.action0),
-            (self.state1, self.state2, self.action0),
-            (self.state2, self.state3, self.action0),
-            (self.state3, self.state0, self.action0),
+            (
+                self.state0,
+                self.state1,
+                Transition(action=self.action0, probability=1.0, frequency=1),
+            ),
+            (
+                self.state1,
+                self.state2,
+                Transition(action=self.action0, probability=1.0, frequency=1),
+            ),
+            (
+                self.state2,
+                self.state3,
+                Transition(action=self.action0, probability=1.0, frequency=1),
+            ),
+            (
+                self.state3,
+                self.state0,
+                Transition(action=self.action0, probability=1.0, frequency=1),
+            ),
         ]
-        self.representation.add_transitions_from(
-            transitions, frequency=1, probability=1.0
-        )
+        self.representation.add_transitions_from(transitions)
 
         self.assertEqual(len(self.representation.get_all_states()), 4)
         self.assertEqual(len(self.representation.get_all_transitions()), 4)

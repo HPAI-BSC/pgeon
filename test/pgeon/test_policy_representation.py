@@ -92,13 +92,23 @@ class TestPolicyRepresentation(unittest.TestCase):
 
         # Add multiple transitions
         transitions = [
-            (self.state1, self.state2, self.action0),
-            (self.state2, self.state3, self.action0),
-            (self.state3, self.state0, self.action0),
+            (
+                self.state1,
+                self.state2,
+                Transition(action=self.action0, frequency=3, probability=0.75),
+            ),
+            (
+                self.state2,
+                self.state3,
+                Transition(action=self.action0, frequency=3, probability=0.75),
+            ),
+            (
+                self.state3,
+                self.state0,
+                Transition(action=self.action0, frequency=3, probability=0.75),
+            ),
         ]
-        self.representation.add_transitions_from(
-            transitions, frequency=3, probability=0.75
-        )
+        self.representation.add_transitions_from(transitions)
 
         self.assertTrue(
             self.representation.has_transition(self.state1, self.state2, self.action0)
@@ -376,14 +386,28 @@ class TestPolicyRepresentation(unittest.TestCase):
         )
 
         transitions: List[Tuple[State, State, Action]] = [
-            (self.state0, self.state1, self.action0),
-            (self.state1, self.state2, self.action0),
-            (self.state2, self.state3, self.action0),
-            (self.state3, self.state0, self.action0),
+            (
+                self.state0,
+                self.state1,
+                Transition(action=self.action0, frequency=1, probability=1.0),
+            ),
+            (
+                self.state1,
+                self.state2,
+                Transition(action=self.action0, frequency=1, probability=1.0),
+            ),
+            (
+                self.state2,
+                self.state3,
+                Transition(action=self.action0, frequency=1, probability=1.0),
+            ),
+            (
+                self.state3,
+                self.state0,
+                Transition(action=self.action0, frequency=1, probability=1.0),
+            ),
         ]
-        self.representation.add_transitions_from(
-            transitions, frequency=1, probability=1.0
-        )
+        self.representation.add_transitions_from(transitions)
 
         obs, _ = env.reset()
         initial_state = PredicateBasedState(self.discretizer.discretize(obs))
@@ -460,14 +484,28 @@ class TestPolicyRepresentation(unittest.TestCase):
         )
 
         transitions: List[Tuple[State, State, Action]] = [
-            (self.state0, self.state1, self.action0),
-            (self.state1, self.state2, self.action0),
-            (self.state2, self.state3, self.action0),
-            (self.state3, self.state0, self.action0),
+            (
+                self.state0,
+                self.state1,
+                Transition(action=self.action0, frequency=1, probability=1.0),
+            ),
+            (
+                self.state1,
+                self.state2,
+                Transition(action=self.action0, frequency=1, probability=1.0),
+            ),
+            (
+                self.state2,
+                self.state3,
+                Transition(action=self.action0, frequency=1, probability=1.0),
+            ),
+            (
+                self.state3,
+                self.state0,
+                Transition(action=self.action0, frequency=1, probability=1.0),
+            ),
         ]
-        self.representation.add_transitions_from(
-            transitions, frequency=1, probability=1.0
-        )
+        self.representation.add_transitions_from(transitions)
 
     def test_get_possible_transitions_single_transition(self):
         """Test getting possible actions from a state with a single transition."""

@@ -419,15 +419,14 @@ class GraphRepresentation(PolicyRepresentation):
 
     def add_transitions_from(
         self,
-        transitions: Collection[Tuple[State, State, Action]],
-        **attributes,
+        transitions: Collection[Tuple[State, State, Transition]],
     ) -> None:
         """Add multiple transitions with optional attributes."""
-        for from_state, to_state, action in transitions:
+        for from_state, to_state, transition in transitions:
             self.add_transition(
                 from_state,
                 to_state,
-                Transition(action=action, **attributes),
+                transition,
             )
 
     def get_transition_data(
