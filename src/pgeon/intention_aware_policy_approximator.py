@@ -133,99 +133,92 @@ class IntentionAwarePolicyApproximator(
 
     def register_desire(self, desire: Desire, stop_criterion=1e-4):
         self.registered_desires.append(desire)
-        for state in self.policy_representation.get_all_states():
-            state_metadata = self.policy_representation.get_state_data(state)
+        for state in self.policy_representation.states:
+            state_metadata = self.policy_representation.states[state].metadata
             state_metadata.intention[desire] = 0.0
-            self.policy_representation.set_state_metadata({state: state_metadata})
+            self.policy_representation.states[state] = state_metadata
 
-        for node in self.policy_representation.get_all_states():
+        for node in self.policy_representation.states:
             p = self.check_desire(node, desire)
             if p > 0:
                 self.propagate_intention(node, desire, p, stop_criterion)
 
     def get_possible_actions(self, s: State) -> List[Action]:
         # Returns any a s.t. P(a|s)>0
-        if isinstance(s, int):
-            # TODO: Legacy: to be removed
-            s_node = self.stateID_to_node(s)
-            s_transitions = self.policy_representation.get_transitions_from_state(
-                s_node
-            )
-            return list(s_transitions.keys())
-        else:
-            return list(self.policy_representation.get_transitions_from_state(s).keys())
+        return [
+            transition_data.action
+            for transition_data in self.policy_representation.transitions[s]
+        ]
 
     def get_possible_s_prima(self, s: State, a: Action = None) -> List[State]:
         # Returns any a s.t. P(a|s)>0
-        if isinstance(s, int):
-            # TODO: Legacy: to be removed
-            node = self.stateID_to_node(s)
-        else:
-            node = s
-        try:
-            edges_with_probs = [
-                (data["action"], dest, data["probability"])
-                for orig, dest, data in self.policy_representation.get_outgoing_transitions(
-                    node
-                )
-            ]
-        except KeyError:
-            edges_with_probs = []
+        transitions_with_nonzero_probability = [
+            transition_data
+            for transition_data in self.policy_representation.transitions[s]
+            if transition_data.probability > 0
+        ]
         # TODO: Check on this
-        edges_with_probs = list(
-            set(edges_with_probs)
+        transitions_with_nonzero_probability = list(
+            set(transitions_with_nonzero_probability)
         )  # deduplicate, for some reason needed (?)
         if a is not None:
             # Filter for edges annotated with action= a only
             destinies = list(
-                set([dest for act, dest, p in edges_with_probs if p > 0 and act == a])
+                set(
+                    [
+                        transition_data.to_state
+                        for transition_data in transitions_with_nonzero_probability
+                        if transition_data.action == a
+                    ]
+                )
             )
         else:
-            destinies = list(set([dest for act, dest, p in edges_with_probs if p > 0]))
+            destinies = list(
+                set(
+                    [
+                        transition_data.to_state
+                        for transition_data in transitions_with_nonzero_probability
+                    ]
+                )
+            )
         return destinies
 
     def get_all_state_ids(self) -> Iterable[State]:
-        return self.policy_representation.get_all_states()
+        return self.policy_representation.states
 
     def check_desire(self, node: PredicateBasedState, desire: Desire) -> float:
-        if isinstance(node, PredicateBasedState):
-            predicates_in_state = set(node.predicates)
-        else:
-            predicates_in_state = set(node)
-
-        if desire.clause.predicates.issubset(predicates_in_state):
+        if desire.clause.predicates.issubset(node.predicates):
             return 1.0
         return 0.0
 
     def get_intention(self, s: State, desire: Desire):
         try:
-            node_data = self.policy_representation.get_state_data(s)
-            return node_data.intention.get(desire, 0.0)
+            return self.policy_representation.states[s].metadata.intention.get(
+                desire, 0.0
+            )
         except KeyError:
             return 0
 
     def get_intentions(self, s: State) -> Dict[Desire, float]:
         try:
-            return self.policy_representation.get_state_data(s).intention
+            return self.policy_representation.states[s].metadata.intention
         except KeyError:
             return dict()
 
     def _set_intention(self, s, desire, new_int):
-        node_data = self.policy_representation.get_state_data(s)
+        node_data = self.policy_representation.states[s].metadata
         node_data.intention[desire] = new_int
 
     def _prob_s(self, s: State):
-        return self.policy_representation.get_state_data(s).probability
+        return self.policy_representation.states[s].metadata.probability
 
     def _prob_s_prima_a_given_s(self, s_prima: State, a: Action, given_s: State):
         # Assuming the 's' is always in predicates format for simplicity
         try:
             prob = [
-                Transition.model_validate(data).probability
-                for _, dest, data in self.policy_representation.get_outgoing_transitions(
-                    given_s
-                )
-                if a == Transition.model_validate(data).action and dest == s_prima
+                transition_data.probability
+                for transition_data in self.policy_representation.transitions[given_s]
+                if a == transition_data.action and transition_data.to_state == s_prima
             ]
             if len(prob) > 1:
                 raise AssertionError(
@@ -265,11 +258,11 @@ class IntentionAwarePolicyApproximator(
 
     def _prob_s_prima_given_a_s(self, s_prima, given_a, given_s):
         """p(s'|a,s)"""
-        transitions = self.policy_representation.get_outgoing_transitions(given_s)
+        transitions = list(self.policy_representation.transitions[given_s])
         prob = [
-            Transition.model_validate(data).probability
-            for _, dest, data in transitions
-            if given_a == Transition.model_validate(data).action and dest == s_prima
+            transition_data.probability
+            for transition_data in transitions
+            if given_a == transition_data.action and transition_data.to_state == s_prima
         ]
         return sum(prob)
 
@@ -284,29 +277,28 @@ class IntentionAwarePolicyApproximator(
     def _prob_s_prima_given_s(self, s_prima, given_s):
         """p(s'|s)"""
         # TODO: this needs to be marginalized over actions
-        transitions = self.policy_representation.get_outgoing_transitions(given_s)
+        transitions = list(self.policy_representation.transitions[given_s])
         prob = [
-            Transition.model_validate(data).probability
-            for _, dest, data in transitions
-            if dest == s_prima
+            transition_data.probability
+            for transition_data in transitions
+            if transition_data.to_state == s_prima
         ]
         return sum(prob)
 
     def stateID_to_node(self, s: State) -> dict[str, Any]:
-        return self.policy_representation.get_state_data(s)
+        return self.policy_representation.states[s].metadata
 
     def propagate_intention(
         self,
-        node: State,
+        state: State,
         desire: Desire,
         propagated_intention: float,
         stop_criterion: float,
     ):
-        # TODO: This should eventually be a method of AbstractIPG
-        self._update_intention(node, desire, propagated_intention)
+        self._update_intention(state, desire, propagated_intention)
 
-        for parent in self.policy_representation.get_predecessors(node):
-            prob_transition = self.prob(ProbQuery(s_prima=node, given_s=parent))
+        for parent in self.policy_representation.states[state].predecessors:
+            prob_transition = self.prob(ProbQuery(s_prima=state, given_s=parent))
             new_coincider_intention_value = prob_transition * propagated_intention
 
             if new_coincider_intention_value >= stop_criterion:
@@ -320,11 +312,12 @@ class IntentionAwarePolicyApproximator(
                         new_coincider_intention_value,
                     )
 
-    def _update_intention(self, node, desire, intention):
-        graph_node = self.policy_representation.get_state_data(node)
-        current_intention_val = graph_node.intention.get(desire, 0.0)
-        graph_node.intention[desire] = current_intention_val + intention
-        self.policy_representation.set_state_metadata({node: graph_node})
+    def _update_intention(self, state: State, desire: Desire, intention_value: float):
+        current_metadata = self.policy_representation.states[state].metadata
+        intention = current_metadata.intention
+        intention[desire] = 0 + intention_value
+        updated_metadata = current_metadata.model_copy(update={"intention": intention})
+        self.policy_representation.states[state] = updated_metadata
 
     def get_action_probability(self, state: State) -> Dict[Action, float]:
         # TODO: This should go in the representation parent class
@@ -335,7 +328,7 @@ class IntentionAwarePolicyApproximator(
 
     def answer_what(self, state: State) -> List[Tuple[Goal, float]]:
         """Answers the question: What are the intentions in a given state?"""
-        intentions = self.policy_representation.get_state_data(state).intention
+        intentions = self.policy_representation.states[state].metadata.intention
         if intentions:
             return list(intentions.items())
         return []

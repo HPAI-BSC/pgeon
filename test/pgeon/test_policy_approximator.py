@@ -64,7 +64,7 @@ class TestPolicyApproximator(unittest.TestCase):
 
         self.assertTrue(self.approximator._is_fit)
 
-        states = self.representation.get_all_states()
+        states = list(self.representation.states)
         self.assertEqual(len(states), 4)
         self.assertIn(self.state0, states)
         self.assertIn(self.state1, states)
@@ -72,41 +72,39 @@ class TestPolicyApproximator(unittest.TestCase):
         self.assertIn(self.state3, states)
 
         self.assertTrue(
-            self.representation.has_transition(self.state0, self.state1, self.action0)
+            (self.state0, self.state1, self.action0) in self.representation.transitions
         )
         self.assertTrue(
-            self.representation.has_transition(self.state1, self.state2, self.action0)
+            (self.state1, self.state2, self.action0) in self.representation.transitions
         )
         self.assertTrue(
-            self.representation.has_transition(self.state2, self.state3, self.action0)
+            (self.state2, self.state3, self.action0) in self.representation.transitions
         )
         self.assertTrue(
-            self.representation.has_transition(self.state3, self.state0, self.action0)
+            (self.state3, self.state0, self.action0) in self.representation.transitions
         )
 
-        transitions = self.representation.get_all_transitions()
-        for transition in transitions:
-            from_state, to_state, data = transition
-            transition_obj = Transition.model_validate(data)
-            self.assertGreater(transition_obj.frequency, 0)
-            self.assertGreater(transition_obj.probability, 0)
-            self.assertLessEqual(transition_obj.probability, 1.0)
-            if from_state == self.state0:
-                self.assertEqual(to_state, self.state1)
-                self.assertEqual(transition_obj.action, self.action0)
-                self.assertEqual(transition_obj.probability, 1.0)
-            elif from_state == self.state1:
-                self.assertEqual(to_state, self.state2)
-                self.assertEqual(transition_obj.action, self.action0)
-                self.assertEqual(transition_obj.probability, 1.0)
-            elif from_state == self.state2:
-                self.assertEqual(to_state, self.state3)
-                self.assertEqual(transition_obj.action, self.action0)
-                self.assertEqual(transition_obj.probability, 1.0)
-            elif from_state == self.state3:
-                self.assertEqual(to_state, self.state0)
-                self.assertEqual(transition_obj.action, self.action0)
-                self.assertEqual(transition_obj.probability, 1.0)
+        transitions = list(self.representation.transitions)
+        for transition_data in transitions:
+            self.assertGreater(transition_data.frequency, 0)
+            self.assertGreater(transition_data.probability, 0)
+            self.assertLessEqual(transition_data.probability, 1.0)
+            if transition_data.from_state == self.state0:
+                self.assertEqual(transition_data.to_state, self.state1)
+                self.assertEqual(transition_data.action, self.action0)
+                self.assertEqual(transition_data.probability, 1.0)
+            elif transition_data.from_state == self.state1:
+                self.assertEqual(transition_data.to_state, self.state2)
+                self.assertEqual(transition_data.action, self.action0)
+                self.assertEqual(transition_data.probability, 1.0)
+            elif transition_data.from_state == self.state2:
+                self.assertEqual(transition_data.to_state, self.state3)
+                self.assertEqual(transition_data.action, self.action0)
+                self.assertEqual(transition_data.probability, 1.0)
+            elif transition_data.from_state == self.state3:
+                self.assertEqual(transition_data.to_state, self.state0)
+                self.assertEqual(transition_data.action, self.action0)
+                self.assertEqual(transition_data.probability, 1.0)
 
     def test_get_nearest_state(self):
         self.approximator.fit(n_episodes=1)
@@ -125,7 +123,8 @@ class TestPolicyApproximator(unittest.TestCase):
 
         # Test with multiple nearest predicates
         self.representation.clear()
-        self.representation.add_states_from([self.state0, self.state1])
+        for state in [self.state0, self.state1]:
+            self.representation.states[state] = StateMetadata()
         nonexistent_state = PredicateBasedState((Predicate(DummyState.TWO),))
         nearest = self.approximator.get_nearest_state(nonexistent_state)
         self.assertIn(nearest, [self.state0, self.state1])
@@ -137,8 +136,8 @@ class TestPolicyApproximator(unittest.TestCase):
         representation_with_custom_state_metadata = GraphRepresentation(
             state_metadata_class=CustomStateMetadata
         )
-        self.representation.add_state(
-            self.state0, CustomStateMetadata(custom_attribute=1)
+        self.representation.states[self.state0] = CustomStateMetadata(
+            custom_attribute=1
         )
         self.approximator = PolicyApproximatorFromBasicObservation(
             self.discretizer,
@@ -161,16 +160,13 @@ class TestPolicyApproximator(unittest.TestCase):
 
         # Test with multiple possible actions
         self.representation.clear()
-        self.representation.add_states_from([self.state0, self.state1, self.state2])
-        self.representation.add_transition(
-            self.state0,
-            self.state1,
-            Transition(action=self.action0, probability=0.5, frequency=1),
+        for state in [self.state0, self.state1, self.state2]:
+            self.representation.states[state] = StateMetadata()
+        self.representation.transitions[self.state0][self.state1] = Transition(
+            action=self.action0, probability=0.5, frequency=1
         )
-        self.representation.add_transition(
-            self.state0,
-            self.state2,
-            Transition(action=self.action1, probability=0.5, frequency=1),
+        self.representation.transitions[self.state0][self.state2] = Transition(
+            action=self.action1, probability=0.5, frequency=1
         )
         result = self.approximator.question1(self.state0)
         self.assertEqual(len(result), 2)
@@ -181,7 +177,7 @@ class TestPolicyApproximator(unittest.TestCase):
 
         # Test with no possible actions
         self.representation.clear()
-        self.representation.add_state(self.state0)
+        self.representation.states[self.state0] = StateMetadata()
         result = self.approximator.question1(self.state0)
         self.assertEqual(len(result), 0)
 
@@ -197,19 +193,16 @@ class TestPolicyApproximator(unittest.TestCase):
 
         # Test with action being best in some states
         self.representation.clear()
-        self.representation.add_states_from([self.state0, self.state1, self.state2])
-        self.representation.add_transition(
-            self.state0,
-            self.state1,
-            Transition(action=self.action0, probability=1.0, frequency=1),
+        for state in [self.state0, self.state1, self.state2]:
+            self.representation.states[state] = StateMetadata()
+        self.representation.transitions[self.state0][self.state1] = Transition(
+            action=self.action0, probability=1.0, frequency=1
         )
-        self.representation.add_transition(
-            self.state1, self.state2, Transition(action=1, probability=1.0, frequency=1)
+        self.representation.transitions[self.state1][self.state2] = Transition(
+            action=1, probability=1.0, frequency=1
         )
-        self.representation.add_transition(
-            self.state2,
-            self.state0,
-            Transition(action=self.action0, probability=1.0, frequency=1),
+        self.representation.transitions[self.state2][self.state0] = Transition(
+            action=self.action0, probability=1.0, frequency=1
         )
         best_nodes = self.approximator.question2(self.action0)
         self.assertEqual(len(best_nodes), 2)
@@ -224,19 +217,16 @@ class TestPolicyApproximator(unittest.TestCase):
 
         # Test with explanations
         self.representation.clear()
-        self.representation.add_states_from([self.state0, self.state1, self.state2])
-        self.representation.add_transition(
-            self.state0,
-            self.state1,
-            Transition(action=self.action0, probability=1.0, frequency=1),
+        for state in [self.state0, self.state1, self.state2]:
+            self.representation.states[state] = StateMetadata()
+        self.representation.transitions[self.state0][self.state1] = Transition(
+            action=self.action0, probability=1.0, frequency=1
         )
-        self.representation.add_transition(
-            self.state1, self.state2, Transition(action=1, probability=1.0, frequency=1)
+        self.representation.transitions[self.state1][self.state2] = Transition(
+            action=1, probability=1.0, frequency=1
         )
-        self.representation.add_transition(
-            self.state2,
-            self.state0,
-            Transition(action=self.action0, probability=1.0, frequency=1),
+        self.representation.transitions[self.state2][self.state0] = Transition(
+            action=self.action0, probability=1.0, frequency=1
         )
         explanations = self.approximator.question3(self.state1, self.action0)
         self.assertEqual(len(explanations), 0)
@@ -244,10 +234,10 @@ class TestPolicyApproximator(unittest.TestCase):
     def test_creating_graph_representation_programmatically(self):
         self.representation.clear()
 
-        self.representation.add_states_from(
-            [self.state0, self.state1, self.state2, self.state3],
-            StateMetadata(frequency=1, probability=0.25),
-        )
+        for state in [self.state0, self.state1, self.state2, self.state3]:
+            self.representation.states[state] = StateMetadata(
+                frequency=1, probability=0.25
+            )
 
         transitions = [
             (
@@ -271,10 +261,11 @@ class TestPolicyApproximator(unittest.TestCase):
                 Transition(action=self.action0, probability=1.0, frequency=1),
             ),
         ]
-        self.representation.add_transitions_from(transitions)
+        for from_state, to_state, transition in transitions:
+            self.representation.transitions[from_state][to_state] = transition
 
-        self.assertEqual(len(self.representation.get_all_states()), 4)
-        self.assertEqual(len(self.representation.get_all_transitions()), 4)
+        self.assertEqual(len(list(self.representation.states)), 4)
+        self.assertEqual(len(list(self.representation.transitions)), 4)
 
         # Set up a new approximator with the graph representation
         approx = PolicyApproximatorFromBasicObservation(
@@ -322,10 +313,8 @@ class TestOfflinePolicyApproximator(unittest.TestCase):
         )
 
         self.assertTrue(approximator._is_fit)
-        self.assertEqual(len(approximator.policy_representation.get_all_states()), 4)
-        self.assertEqual(
-            len(approximator.policy_representation.get_all_transitions()), 18
-        )
+        self.assertEqual(len(list(approximator.policy_representation.states)), 4)
+        self.assertEqual(len(list(approximator.policy_representation.transitions)), 18)
 
     def test_from_nodes_and_trajectories(self):
         approximator = OfflinePolicyApproximator.from_nodes_and_trajectories(
@@ -334,10 +323,8 @@ class TestOfflinePolicyApproximator(unittest.TestCase):
             self.discretizer,
         )
         self.assertTrue(approximator._is_fit)
-        self.assertEqual(len(approximator.policy_representation.get_all_states()), 4)
-        self.assertEqual(
-            len(approximator.policy_representation.get_all_transitions()), 4
-        )
+        self.assertEqual(len(list(approximator.policy_representation.states)), 4)
+        self.assertEqual(len(list(approximator.policy_representation.transitions)), 4)
 
     def test_from_pickle(self):
         # First, create a pickle file to test with
@@ -353,11 +340,9 @@ class TestOfflinePolicyApproximator(unittest.TestCase):
             "test/data/cartpole_small.pickle"
         )
         self.assertTrue(loaded_approximator._is_fit)
+        self.assertEqual(len(list(loaded_approximator.policy_representation.states)), 4)
         self.assertEqual(
-            len(loaded_approximator.policy_representation.get_all_states()), 4
-        )
-        self.assertEqual(
-            len(loaded_approximator.policy_representation.get_all_transitions()), 18
+            len(list(loaded_approximator.policy_representation.transitions)), 18
         )
 
 

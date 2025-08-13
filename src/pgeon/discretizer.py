@@ -83,6 +83,31 @@ class Transition(BaseModel):
     frequency: int = 0
 
 
+class TransitionData:
+    """A wrapper around Transition that includes from_state and to_state for fluent API."""
+
+    def __init__(self, transition: Transition, from_state: State, to_state: State):
+        self.transition = transition
+        self.from_state = from_state
+        self.to_state = to_state
+
+    @property
+    def action(self) -> Action:
+        return self.transition.action
+
+    @property
+    def probability(self) -> float:
+        return self.transition.probability
+
+    @property
+    def frequency(self) -> int:
+        return self.transition.frequency
+
+    def __getattr__(self, name):
+        """Delegate other attributes to the underlying transition."""
+        return getattr(self.transition, name)
+
+
 class StateMetadata(BaseModel):
     probability: float = 0.0
     frequency: int = 0

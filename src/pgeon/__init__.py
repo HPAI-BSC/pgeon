@@ -15,7 +15,6 @@ from .policy_approximator import (
 from .policy_representation import (
     Action,
     GraphRepresentation,
-    IntentionalPolicyGraphRepresentation,
     PolicyRepresentation,
 )
 
@@ -26,7 +25,6 @@ __all__ = [
     "Discretizer",
     "Environment",
     "GraphRepresentation",
-    "IntentionalPolicyGraphRepresentation",
     "IntentionAwarePolicyApproximator",
     "OfflinePolicyApproximator",
     "PolicyApproximator",

@@ -133,7 +133,7 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
         self.assertEqual(self.ipg.c_threshold, 0.5)
         self.assertFalse(self.ipg.verbose)
         self.assertIsInstance(self.ipg.policy_representation, GraphRepresentation)
-        self.assertTrue(len(self.ipg.policy_representation.get_all_states()) > 0)
+        self.assertTrue(len(list(self.ipg.policy_representation.states)) > 0)
 
     def test_desire_registration(self):
         """Test that desires are registered correctly."""

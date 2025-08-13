@@ -23,8 +23,8 @@ class TestEndToEnd(unittest.TestCase):
 
         approximator.fit(n_episodes=10)
 
-        self.assertGreater(len(representation.get_all_states()), 0)
-        self.assertGreater(len(representation.get_all_transitions()), 0)
+        self.assertGreater(len(list(representation.states)), 0)
+        self.assertGreater(len(list(representation.transitions)), 0)
 
         obs, _ = env.reset()
         for _ in range(100):
