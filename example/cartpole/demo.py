@@ -1,68 +1,81 @@
-import gymnasium as gym
-from ray.rllib.algorithms.algorithm import Algorithm
+import os
+import sys
 
-from example.cartpole.discretizer import (
+import gymnasium as gym
+
+# Add the example directory to the path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
+
+from discretizer import (
     Action,
     Angle,
     CartpoleDiscretizer,
     Position,
     Velocity,
 )
-from pgeon import Agent, PolicyGraph, Predicate
+from simple_agent import SimpleCartpoleAgent
 
-
-class CartpoleAgent(Agent):
-    def __init__(self, path):
-        self.agent = Algorithm.from_checkpoint(path)
-
-    def act(self, state):
-        return self.agent.compute_single_action(state)
-
+from pgeon import (
+    GraphRepresentation,
+    PolicyApproximatorFromBasicObservation,
+    Predicate,
+    PredicateBasedState,
+)
 
 if __name__ == "__main__":
     environment = gym.make("CartPole-v1")
     discretizer = CartpoleDiscretizer()
+    representation = GraphRepresentation()
 
-    agent = CartpoleAgent(
-        "checkpoints/PPO_CartPole-v1_1acbb_00000_0_2023-12-05_19-28-36/checkpoint_000000"
+    # Use the simple agent instead of loading large checkpoint files
+    agent = SimpleCartpoleAgent()
+
+    approximator = PolicyApproximatorFromBasicObservation(
+        discretizer, representation, environment, agent
     )
+    approximator.fit(n_episodes=100)
 
-    pg = PolicyGraph(environment, discretizer)
-    pg = pg.fit(agent, num_episodes=10, update=False)
-    print(f"Number of nodes: {len(pg.nodes)}")
-    print(f"Number of edges: {len(pg.edges)}")
+    # Get the policy representation
+    pg = approximator.policy_representation
 
-    arbitrary_state = list(pg.nodes)[0]
+    print(f"Number of states: {len(list(pg.states))}")
+    print(f"Number of transitions: {len(list(pg.transitions))}")
+
+    arbitrary_state = next(iter(pg.states))
 
     print(arbitrary_state)
-    print(f'  Times visited: {pg.nodes[arbitrary_state]["frequency"]}')
-    print(f'  p(s):          {pg.nodes[arbitrary_state]["probability"]:.3f}')
+    print(f"  Times visited: {pg.states[arbitrary_state].metadata.frequency}")
+    print(f"  p(s):          {pg.states[arbitrary_state].metadata.probability:.3f}")
 
-    arbitrary_edge = list(pg.edges)[0]
+    arbitrary_transition = next(iter(pg.transitions))
+    # The transition is already a TransitionData object
+    from_state = arbitrary_transition.from_state
+    to_state = arbitrary_transition.to_state
+    transition_data = arbitrary_transition
 
-    print(f"From:    {arbitrary_edge[0]}")
-    print(f"Action:  {arbitrary_edge[2]}")
-    print(f"To:      {arbitrary_edge[1]}")
-    print(
-        f'  Times visited:      {pg[arbitrary_edge[0]][arbitrary_edge[1]][arbitrary_edge[2]]["frequency"]}'
-    )
-    print(
-        f'  p(s_to,a | s_from): {pg[arbitrary_edge[0]][arbitrary_edge[1]][arbitrary_edge[2]]["probability"]:.3f}'
+    print(f"From:    {from_state}")
+    print(f"Action:  {transition_data.transition.action}")
+    print(f"To:      {to_state}")
+    print(f"  Times visited:      {transition_data.transition.frequency}")
+    print(f"  p(s_to,a | s_from): {transition_data.transition.probability:.3f}")
+
+    # Create a PredicateBasedState for the query
+    query_state = PredicateBasedState(
+        [
+            Predicate(Position.MIDDLE),
+            Predicate(Velocity.RIGHT),
+            Predicate(Angle.STANDING),
+        ]
     )
 
-    possible_actions = pg.question1(
-        (
-            Predicate(Position, [Position(Position.MIDDLE)]),
-            Predicate(Velocity, [Velocity(Velocity.RIGHT)]),
-            Predicate(Angle, [Angle(Angle.STANDING)]),
-        )
-    )
+    possible_actions = approximator.question1(query_state)
 
     print("I will take one of these actions:")
     for action, prob in possible_actions:
-        print("\t->", action.name, "\tProb:", round(prob * 100, 2), "%")
+        action_name = "LEFT" if action == 0 else "RIGHT"
+        print(f"\t-> {action_name}\tProb: {round(prob * 100, 2)}%")
 
-    best_states = pg.question2(Action.LEFT.value)
+    best_states = approximator.question2(Action.LEFT.value)
     print(f"I will perform action {0} in these states:")
     print("\n".join([str(state) for state in best_states]))
 
@@ -70,15 +83,14 @@ if __name__ == "__main__":
         f"Supposing I was in the middle, moving right, with the pole standing upright, "
         f"if I did not choose to move left was due to..."
     )
-    counterfactuals = pg.question3(
-        (
-            Predicate(Position, [Position(Position.MIDDLE)]),
-            Predicate(Velocity, [Velocity(Velocity.RIGHT)]),
-            Predicate(Angle, [Angle(Angle.STANDING)]),
-        ),
-        Action.LEFT,
-    )
-    for ct in counterfactuals:
+    try:
+        counterfactuals = approximator.question3(query_state, Action.LEFT)
+        for ct in counterfactuals:
+            print(
+                f"...{' and '.join([str(i[0]) + ' -> ' + str(i[1]) for i in ct.values()])}"
+            )
+    except ValueError as e:
+        print(f"Could not generate counterfactuals: {e}")
         print(
-            f'...{" and ".join([str(i[0]) + " -> " + str(i[1]) for i in ct.values()])}'
+            "This might be because the query state is not well-represented in the policy graph."
         )

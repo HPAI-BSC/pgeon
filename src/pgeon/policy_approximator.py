@@ -17,7 +17,6 @@ from typing import (
 
 import numpy as np
 import tqdm
-from gymnasium import Env
 
 from pgeon.agent import Agent
 from pgeon.discretizer import (
@@ -28,6 +27,7 @@ from pgeon.discretizer import (
     StateMetadata,
     Transition,
 )
+from pgeon.environment import Environment
 from pgeon.policy_representation import (
     GraphRepresentation,
     PolicyRepresentation,
@@ -89,8 +89,8 @@ class PolicyApproximator(abc.ABC, Generic[TStateMetadata]):
 
         if format == "csv":
             assert (
-                len(path) == 3
-            ), "When saving in CSV format, path must be a list of 3 elements (nodes, edges, trajectories)!"
+                len(path) == 2
+            ), "When saving in CSV format, path must be a list of 2 elements (nodes, edges)!"
             self._save_csv(*path)
         elif format == "gram":
             assert isinstance(
@@ -109,6 +109,12 @@ class PolicyApproximator(abc.ABC, Generic[TStateMetadata]):
         path_includes_pickle = path[-7:] == ".pickle"
         with open(f"{path}{'' if path_includes_pickle else '.pickle'}", "wb") as f:
             pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def _save_csv(self, path_nodes: str, path_edges: str):
+        self.policy_representation.save_csv(path_nodes, path_edges)
+
+    def _save_gram(self, path: str):
+        self.policy_representation.save_gram(self.discretizer, Path(path))
 
     @abc.abstractmethod
     def fit(self): ...
@@ -207,8 +213,7 @@ class OfflinePolicyApproximator(PolicyApproximator, Generic[TStateMetadata]):
         return approximator
 
     def fit(self):
-        # Offline approximator is already fitted by definition
-        pass
+        raise NotImplementedError("OfflinePolicyApproximator is not fittable")
 
 
 class PolicyApproximatorFromBasicObservation(
@@ -223,7 +228,7 @@ class PolicyApproximatorFromBasicObservation(
         self,
         discretizer: Discretizer,
         policy_representation: PolicyRepresentation[TStateMetadata],
-        environment: Env,
+        environment: Environment,
         agent: Agent,
     ):
         super().__init__(discretizer, policy_representation)
@@ -615,7 +620,3 @@ class PolicyApproximatorFromBasicObservation(
         if len(explanations) == 0 and verbose:
             print("\tI don't know where I would have ended up")
         return explanations
-
-
-class InterventionalPGConstruction(PolicyApproximator):
-    def fit(self): ...

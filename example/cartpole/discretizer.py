@@ -3,7 +3,7 @@ from typing import Tuple
 
 import numpy as np
 
-from pgeon.discretizer import Discretizer, Predicate
+from pgeon import Discretizer, Predicate
 
 
 class Position(Enum):
@@ -70,9 +70,9 @@ class CartpoleDiscretizer(Discretizer):
             pole_predicate = Angle.STABILIZING_LEFT
 
         return (
-            Predicate(Position, [pos_predicate]),
-            Predicate(Velocity, [mov_predicate]),
-            Predicate(Angle, [pole_predicate]),
+            Predicate(pos_predicate),
+            Predicate(mov_predicate),
+            Predicate(pole_predicate),
         )
 
     def state_to_str(self, state: Tuple[Predicate, Predicate, Predicate]) -> str:
@@ -85,9 +85,9 @@ class CartpoleDiscretizer(Discretizer):
         pole_predicate = Angle[angle[:-1].split("(")[1]]
 
         return (
-            Predicate(Position, [pos_predicate]),
-            Predicate(Velocity, [mov_predicate]),
-            Predicate(Angle, [pole_predicate]),
+            Predicate(pos_predicate),
+            Predicate(mov_predicate),
+            Predicate(pole_predicate),
         )
 
     def nearest_state(self, state):
@@ -95,13 +95,13 @@ class CartpoleDiscretizer(Discretizer):
 
         for e in Position:
             if [e] != og_position.value:
-                yield Predicate(Position, [e]), og_velocity, og_angle
+                yield Predicate(e), og_velocity, og_angle
         for e in Velocity:
             if [e] != og_velocity.value:
-                yield og_position, Predicate(Velocity, [e]), og_angle
+                yield og_position, Predicate(e), og_angle
         for e in Angle:
             if [e] != og_angle.value:
-                yield og_position, og_velocity, Predicate(Angle, [e])
+                yield og_position, og_velocity, Predicate(e)
 
         for e in Position:
             for f in Velocity:
@@ -113,9 +113,9 @@ class CartpoleDiscretizer(Discretizer):
                     )
                     if amount_of_equals_to_og <= 1:
                         yield (
-                            Predicate(Position, [e]),
-                            Predicate(Velocity, [f]),
-                            Predicate(Angle, [g]),
+                            Predicate(e),
+                            Predicate(f),
+                            Predicate(g),
                         )
 
     def all_actions(self):
