@@ -300,7 +300,10 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertEqual(actions[0].probability, 1.0)
 
         nonexistent_state = PredicateBasedState(
-            (Predicate(DummyState.ZERO), Predicate(DummyState.ONE))
+            (
+                Predicate(DummyState.ZERO),
+                Predicate(DummyState.ONE),
+            )
         )
         actions = self.representation.get_possible_transitions(nonexistent_state)
         self.assertEqual(len(actions), 0)
@@ -332,7 +335,10 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertIn(self.state1, next_states)
 
         nonexistent_state = PredicateBasedState(
-            (Predicate(DummyState.ZERO), Predicate(DummyState.ONE))
+            (
+                Predicate(DummyState.ZERO),
+                Predicate(DummyState.ONE),
+            )
         )
         next_states = self.representation.get_possible_next_states(nonexistent_state)
         self.assertEqual(len(next_states), 0)
@@ -358,7 +364,10 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertIn(self.state1, transitions[self.action0])
 
         nonexistent_state = PredicateBasedState(
-            (Predicate(DummyState.ZERO), Predicate(DummyState.ONE))
+            (
+                Predicate(DummyState.ZERO),
+                Predicate(DummyState.ONE),
+            )
         )
         transitions = self.representation.get_transitions_from_state(nonexistent_state)
         self.assertEqual(len(transitions), 0)
@@ -565,6 +574,124 @@ class TestPolicyRepresentation(unittest.TestCase):
         self.assertEqual(len(actions), 1)
         self.assertEqual(actions[0].action, self.action0)
         self.assertEqual(actions[0].probability, 1.0)
+
+    def test_getitem_setitem_methods(self):
+        """Test the __getitem__ and __setitem__ methods of the graph backend."""
+        # Add a state first
+        self.representation.add_state(
+            self.state0, StateMetadata(frequency=5, probability=0.25)
+        )
+
+        # Test __getitem__ - accessing state metadata
+        state_metadata = self.representation.graph[self.state0]
+        self.assertEqual(state_metadata.frequency, 5)
+        self.assertEqual(state_metadata.probability, 0.25)
+
+        # Test __setitem__ - updating state metadata
+        new_metadata = StateMetadata(frequency=10, probability=0.5)
+        self.representation.graph[self.state0] = new_metadata
+
+        # Verify the update worked
+        updated_metadata = self.representation.graph[self.state0]
+        self.assertEqual(updated_metadata.frequency, 10)
+        self.assertEqual(updated_metadata.probability, 0.5)
+
+        # Verify the change is reflected in the main representation
+        representation_metadata = self.representation.get_state_data(self.state0)
+        self.assertEqual(representation_metadata.frequency, 10)
+        self.assertEqual(representation_metadata.probability, 0.5)
+
+    def test_getitem_setitem_with_custom_metadata_class(self):
+        """Test the __getitem__ and __setitem__ methods with custom state metadata class."""
+
+        class CustomStateMetadata(StateMetadata):
+            custom_attribute: int = 0
+
+        representation_with_custom = GraphRepresentation(
+            state_metadata_class=CustomStateMetadata
+        )
+
+        # Add a state with custom metadata
+        custom_metadata = CustomStateMetadata(
+            frequency=3, probability=0.3, custom_attribute=42
+        )
+        representation_with_custom.add_state(self.state0, custom_metadata)
+
+        # Test __getitem__ with custom metadata
+        retrieved_metadata = representation_with_custom.graph[self.state0]
+        self.assertEqual(retrieved_metadata.frequency, 3)
+        self.assertEqual(retrieved_metadata.probability, 0.3)
+        self.assertEqual(retrieved_metadata.custom_attribute, 42)
+
+        # Test __setitem__ with custom metadata
+        new_custom_metadata = CustomStateMetadata(
+            frequency=7, probability=0.7, custom_attribute=99
+        )
+        representation_with_custom.graph[self.state0] = new_custom_metadata
+
+        # Verify the update worked
+        updated_metadata = representation_with_custom.graph[self.state0]
+        self.assertEqual(updated_metadata.frequency, 7)
+        self.assertEqual(updated_metadata.probability, 0.7)
+        self.assertEqual(updated_metadata.custom_attribute, 99)
+
+    def test_getitem_nonexistent_state(self):
+        """Test __getitem__ with a state that doesn't exist raises KeyError."""
+        # Don't add any states to the representation
+        with self.assertRaises(KeyError):
+            _ = self.representation.graph[self.state0]
+
+    def test_setitem_new_state(self):
+        """Test __setitem__ with a state that doesn't exist yet."""
+        # Set metadata for a state that hasn't been added yet
+        metadata = StateMetadata(frequency=15, probability=0.75)
+        self.representation.graph[self.state0] = metadata
+
+        # Verify the state was created and metadata was set
+        self.assertTrue(self.representation.has_state(self.state0))
+        retrieved_metadata = self.representation.graph[self.state0]
+        self.assertEqual(retrieved_metadata.frequency, 15)
+        self.assertEqual(retrieved_metadata.probability, 0.75)
+
+    def test_getitem_setitem_multiple_states(self):
+        """Test __getitem__ and __setitem__ with multiple states."""
+        # Add multiple states
+        self.representation.add_states_from(
+            [self.state0, self.state1, self.state2],
+            StateMetadata(frequency=1, probability=0.1),
+        )
+
+        # Test __getitem__ for each state
+        metadata0 = self.representation.graph[self.state0]
+        metadata1 = self.representation.graph[self.state1]
+        metadata2 = self.representation.graph[self.state2]
+
+        self.assertEqual(metadata0.frequency, 1)
+        self.assertEqual(metadata1.frequency, 1)
+        self.assertEqual(metadata2.frequency, 1)
+
+        # Test __setitem__ for each state with different values
+        self.representation.graph[self.state0] = StateMetadata(
+            frequency=10, probability=0.5
+        )
+        self.representation.graph[self.state1] = StateMetadata(
+            frequency=20, probability=0.6
+        )
+        self.representation.graph[self.state2] = StateMetadata(
+            frequency=30, probability=0.7
+        )
+
+        # Verify all updates worked
+        updated_metadata0 = self.representation.graph[self.state0]
+        updated_metadata1 = self.representation.graph[self.state1]
+        updated_metadata2 = self.representation.graph[self.state2]
+
+        self.assertEqual(updated_metadata0.frequency, 10)
+        self.assertEqual(updated_metadata0.probability, 0.5)
+        self.assertEqual(updated_metadata1.frequency, 20)
+        self.assertEqual(updated_metadata1.probability, 0.6)
+        self.assertEqual(updated_metadata2.frequency, 30)
+        self.assertEqual(updated_metadata2.probability, 0.7)
 
 
 if __name__ == "__main__":

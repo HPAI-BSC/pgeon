@@ -272,7 +272,10 @@ class GraphRepresentation(PolicyRepresentation[TStateMetadata]):
         def clear(self) -> None: ...
 
         @abc.abstractmethod
-        def __getitem__(self, node: State) -> Any: ...
+        def __getitem__(self, node: State) -> TStateMetadata: ...
+
+        @abc.abstractmethod
+        def __setitem__(self, node: State, metadata: TStateMetadata) -> None: ...
 
         # TODO: Make the return type include other possible backends
         @property
@@ -282,15 +285,18 @@ class GraphRepresentation(PolicyRepresentation[TStateMetadata]):
     class NetworkXGraph(Graph):
         """NetworkX implementation of the Graph interface."""
 
-        def __init__(self):
+        def __init__(self, state_metadata_class: Type[TStateMetadata] = StateMetadata):
             # Not calling super().__init__() since Graph is an ABC
             self._nx_graph = nx.MultiDiGraph()
+            self.state_metadata_class = state_metadata_class
 
-        def __getitem__(self, node: State) -> Any:
-            return cast(
-                Dict[State, Dict[Any, Dict[str, Any]]],
-                self._nx_graph[node],
-            )
+        def __getitem__(self, node: State) -> TStateMetadata:
+            return self.state_metadata_class.model_validate(self._nx_graph.nodes[node])
+
+        def __setitem__(self, node: State, metadata: TStateMetadata) -> None:
+            if not self._nx_graph.has_node(node):
+                self._nx_graph.add_node(node)
+            self._nx_graph.nodes[node].update(metadata.model_dump())
 
         def add_node(self, node: State, **kwargs) -> None:
             self._nx_graph.add_node(node, **kwargs)
@@ -367,7 +373,9 @@ class GraphRepresentation(PolicyRepresentation[TStateMetadata]):
         self.graph: GraphRepresentation.Graph
         self.discretizer: Discretizer
         if graph_backend == "networkx":
-            self.graph = GraphRepresentation.NetworkXGraph()
+            self.graph = GraphRepresentation.NetworkXGraph(
+                state_metadata_class=state_metadata_class
+            )
         else:
             raise NotImplementedError(f"Graph backend {graph_backend} not implemented")
 
@@ -484,14 +492,8 @@ class GraphRepresentation(PolicyRepresentation[TStateMetadata]):
         self, state_to_state_metadata: Dict[State, TStateMetadata]
     ) -> None:
         """Set metadata for states."""
-        for metadata_key in self.state_metadata_class.model_fields.keys():
-            self.graph.set_node_attributes(
-                {
-                    state: metadata.model_dump()[metadata_key]
-                    for state, metadata in state_to_state_metadata.items()
-                },
-                metadata_key,
-            )
+        for state, metadata in state_to_state_metadata.items():
+            self.graph.get_node(state).update(metadata.model_dump())
 
     def get_all_states(self) -> Collection[State]:
         """Get all states in the policy representation."""

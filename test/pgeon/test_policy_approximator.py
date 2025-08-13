@@ -115,7 +115,10 @@ class TestPolicyApproximator(unittest.TestCase):
         self.assertEqual(nearest, self.state0)
 
         nonexistent_state = PredicateBasedState(
-            (Predicate(DummyState.ZERO), Predicate(DummyState.ONE))
+            (
+                Predicate(DummyState.ZERO),
+                Predicate(DummyState.ONE),
+            )
         )
         nearest = self.approximator.get_nearest_state(nonexistent_state)
         self.assertIn(nearest, [self.state0, self.state1, self.state2, self.state3])

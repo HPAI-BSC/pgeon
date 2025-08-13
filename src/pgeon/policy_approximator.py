@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import csv
 import pickle
@@ -282,9 +284,15 @@ class PolicyApproximatorFromBasicObservation(
             state_metadata = self.policy_representation.get_state_data(
                 state_representation
             )
-            state_metadata.frequency += 1
+            # Create a new instance with updated frequency instead of modifying the existing one
+            updated_metadata = state_metadata.model_copy(
+                update={
+                    "frequency": state_metadata.frequency + 1,
+                    "probability": state_metadata.probability,
+                },
+            )
             self.policy_representation.set_state_metadata(
-                {state_representation: state_metadata}
+                {state_representation: updated_metadata}
             )
 
         pointer = 0
@@ -305,7 +313,15 @@ class PolicyApproximatorFromBasicObservation(
                     state_from, state_to, action
                 )
                 if edge_data:
-                    edge_data.frequency += 1
+                    updated_transition = edge_data.model_copy(
+                        update={"frequency": edge_data.frequency + 1}
+                    )
+                    self.policy_representation.graph._nx_graph.remove_edge(
+                        state_from, state_to, key=action
+                    )
+                    self.policy_representation.add_transition(
+                        state_from, state_to, updated_transition
+                    )
             pointer += 2
 
     def fit(
@@ -313,7 +329,7 @@ class PolicyApproximatorFromBasicObservation(
         n_episodes: int = 10,
         max_steps: Optional[int] = None,
         update: bool = False,
-    ) -> "PolicyApproximatorFromBasicObservation":
+    ) -> PolicyApproximatorFromBasicObservation:
         assert (
             n_episodes > 0
         ), "The number of episodes must be a positive integer number!"

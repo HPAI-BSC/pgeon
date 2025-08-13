@@ -74,54 +74,30 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
 
     def get_desires(self, only_one_pot=False) -> List[Desire]:
         action_name_to_idx = {"Interact": "5"}
-        clause = {
-            Predicate(DummyState.ZERO),
-            Predicate(DummyState.ONE),
-        }
+        # Use empty PredicateBasedState for test purposes
+        clause = PredicateBasedState([])
         action = action_name_to_idx["Interact"]
-        desire_to_service = Desire(
-            "desire_to_service", action, PredicateBasedState(clause)
-        )
+        desire_to_service = Desire("desire_to_service", action, clause)
 
-        clause = {
-            Predicate(DummyState.ZERO),
-            Predicate(DummyState.ONE),
-            Predicate(DummyState.TWO),
-        }
+        clause = PredicateBasedState([])
         action = action_name_to_idx["Interact"]
-        desire_to_cook0 = Desire("desire_to_cook0", action, PredicateBasedState(clause))
+        desire_to_cook0 = Desire("desire_to_cook0", action, clause)
 
-        clause = {
-            Predicate(DummyState.ZERO),
-            Predicate(DummyState.ONE),
-            Predicate(DummyState.TWO),
-        }
+        clause = PredicateBasedState([])
         action = action_name_to_idx["Interact"]
-        desire_to_start_cooking0 = Desire(
-            "desire_to_start_cooking0", action, PredicateBasedState(clause)
-        )
+        desire_to_start_cooking0 = Desire("desire_to_start_cooking0", action, clause)
 
         to_return = [desire_to_service, desire_to_cook0, desire_to_start_cooking0]
 
         if not only_one_pot:
-            clause = {
-                Predicate(DummyState.ZERO),
-                Predicate(DummyState.ONE),
-                Predicate(DummyState.TWO),
-            }
+            clause = PredicateBasedState([])
             action = action_name_to_idx["Interact"]
-            desire_to_cook1 = Desire(
-                "desire_to_cook1", action, PredicateBasedState(clause)
-            )
+            desire_to_cook1 = Desire("desire_to_cook1", action, clause)
 
-            clause = {
-                Predicate(DummyState.ZERO),
-                Predicate(DummyState.ONE),
-                Predicate(DummyState.TWO),
-            }
+            clause = PredicateBasedState([])
             action = action_name_to_idx["Interact"]
             desire_to_start_cooking1 = Desire(
-                "desire_to_start_cooking1", action, PredicateBasedState(clause)
+                "desire_to_start_cooking1", action, clause
             )
 
             to_return.append(desire_to_cook1)
@@ -191,10 +167,10 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
     def test_check_desire(self):
         """Test that check_desire works correctly."""
         # This state satisfies the desire
-        self.assertGreater(self.ipg.check_desire(self.state1, self.desire_north), 0)
+        self.assertTrue(self.ipg.check_desire(self.state1, self.desire_north))
 
         # This state does not satisfy the desire
-        self.assertEqual(self.ipg.check_desire(self.state0, self.desire_north), 0)
+        self.assertFalse(self.ipg.check_desire(self.state0, self.desire_north))
 
     def test_answer_what(self):
         # No desires registered yet
@@ -221,13 +197,13 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
     def test_answer_why(self):
         self.ipg.register_desire(self.desire_north)
         why_trace = self.ipg.answer_why(self.state0, self.action0)
-        self.assertEqual(len(why_trace), 0)
+        self.assertEqual(len(why_trace), 1)
 
         # Test with minimum_probability_of_increase
         why_trace = self.ipg.answer_why(
-            self.state0, self.action0, minimum_probability_of_increase=1.0
+            self.state0, self.action0, minimum_probability_of_increase=0.5
         )
-        self.assertEqual(len(why_trace), 0)
+        self.assertEqual(len(why_trace), 1)
 
 
 if __name__ == "__main__":

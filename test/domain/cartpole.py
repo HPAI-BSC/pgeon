@@ -112,7 +112,11 @@ class CartpoleDiscretizer(Discretizer):
                         + int([g] == og_angle.value)
                     )
                     if amount_of_equals_to_og <= 1:
-                        yield Predicate(e), Predicate(f), Predicate(g)
+                        yield (
+                            Predicate(e),
+                            Predicate(f),
+                            Predicate(g),
+                        )
 
     def all_actions(self):
         return [Action.LEFT, Action.RIGHT]

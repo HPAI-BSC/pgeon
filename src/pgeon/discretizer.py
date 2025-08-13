@@ -2,23 +2,28 @@ from __future__ import annotations
 
 import abc
 from enum import Enum
-from typing import Any, Collection, FrozenSet, Iterator, Sequence, Type, Union
+from typing import Collection, FrozenSet, Iterator, Sequence, Type, Union
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
-class Predicate:
+class Predicate(BaseModel):
+    value: Enum
+
     def __init__(self, value: Enum):
-        self.predicate: Type[Enum] = type(value)
-        self.value: Enum = value
+        super().__init__(value=value)
+
+    @property
+    def predicate_type(self) -> Type[Enum]:
+        return type(self.value)
 
     def __eq__(self, other):
         if not isinstance(other, Predicate):
             return False
-        return self.predicate == other.predicate and self.value == other.value
+        return self.predicate_type == other.predicate_type and self.value == other.value
 
     def __str__(self):
-        return f"{self.predicate.__name__}({self.value.name})"
+        return f"{self.predicate_type.__name__}({self.value.name})"
 
     def __repr__(self):
         return self.__str__()
@@ -30,7 +35,7 @@ class Predicate:
         if not isinstance(other, Predicate):
             raise ValueError
         else:
-            return hash(self.predicate) < hash(other.predicate)
+            return hash(self.predicate_type) < hash(other.predicate_type)
 
 
 class State(abc.ABC):
@@ -41,16 +46,11 @@ class State(abc.ABC):
     def __hash__(self) -> int: ...
 
 
-class PredicateBasedState(State):
-    predicates: FrozenSet[Predicate]
+class PredicateBasedState(State, BaseModel):
+    predicates: FrozenSet[Predicate] = Field(frozen=True)
 
     def __init__(self, predicates: Collection[Predicate]):
-        self.predicates = frozenset(predicates)
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        if name == "predicates" and hasattr(self, "predicates"):
-            raise AttributeError("Cannot modify predicates")
-        super().__setattr__(name, value)
+        super().__init__(predicates=frozenset(predicates))
 
     def __eq__(self, other: Union[PredicateBasedState, tuple[Predicate, ...]]) -> bool:
         if isinstance(other, tuple):
@@ -88,7 +88,7 @@ class StateMetadata(BaseModel):
     frequency: int = 0
 
 
-class Discretizer(metaclass=abc.ABCMeta):
+class Discretizer(abc.ABC):
     @classmethod
     def __subclasshook__(cls, subclass):
         return (

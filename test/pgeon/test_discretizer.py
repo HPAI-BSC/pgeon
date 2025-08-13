@@ -1,6 +1,8 @@
 import unittest
 from enum import Enum
 
+from pydantic import ValidationError
+
 from pgeon.discretizer import (
     Predicate,
     PredicateBasedState,
@@ -25,7 +27,7 @@ class Shape(Enum):
 class TestPredicate(unittest.TestCase):
     def test_init(self):
         p = Predicate(Color.RED)
-        self.assertEqual(p.predicate, Color)
+        self.assertEqual(p.predicate_type, Color)
         self.assertEqual(p.value, Color.RED)
 
     def test_eq(self):
@@ -146,8 +148,8 @@ class TestPredicateBasedStateRepresentation(unittest.TestCase):
 
     def test_frozen(self):
         s = PredicateBasedState(predicates=[self.p1])
-        with self.assertRaises(AttributeError):
-            s.predicates = []
+        with self.assertRaises(ValidationError):
+            s.predicates = frozenset([self.p1, self.p2])
 
 
 if __name__ == "__main__":

@@ -76,7 +76,6 @@ class CartpoleDiscretizer(Discretizer):
         )
 
     def state_to_str(self, state: Tuple[Predicate, Predicate, Predicate]) -> str:
-
         return "&".join(str(pred) for pred in state)
 
     def str_to_state(self, state: str):
@@ -113,9 +112,11 @@ class CartpoleDiscretizer(Discretizer):
                         + int([g] == og_angle.value)
                     )
                     if amount_of_equals_to_og <= 1:
-                        yield Predicate(Position, [e]), Predicate(
-                            Velocity, [f]
-                        ), Predicate(Angle, [g])
+                        yield (
+                            Predicate(Position, [e]),
+                            Predicate(Velocity, [f]),
+                            Predicate(Angle, [g]),
+                        )
 
     def all_actions(self):
         return [Action.LEFT, Action.RIGHT]
