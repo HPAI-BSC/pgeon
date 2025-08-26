@@ -28,7 +28,8 @@ A Policy Graph is a means to obtain a representation of the behavior of an opaqu
 or:
 
 1. Download the `pgeon/` folder and move it into the root directory of your project.
-2. Install **pgeon**'s requirements with `pip install -r PATH_TO_PGEON_REQUIREMENTS`.
+2. Install `uv` with `pip install uv`.
+3. Install **pgeon**'s requirements with `uv sync`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for more details on how to install **pgeon** for development.
 
@@ -41,8 +42,16 @@ Given a Gymnasium `environment` and a `discretizer`, you can generate a PG to de
 ```python
 from pgeon import PolicyGraph
 
-pg = PolicyGraph(environment, discretizer)
-pg = pg.fit(agent, num_episodes=1000)
+discretizer = MyDiscretizer()
+representation = GraphRepresentation()
+env = MyEnvironment()
+agent = MyAgent()
+
+approximator = PolicyApproximatorFromBasicObservation(
+    discretizer, representation, env, agent
+)
+
+approximator.fit(n_episodes=100)
 ```
 
 ### Creating and using a PG-based policy
@@ -62,14 +71,13 @@ action = greedy_policy.act(obs)
 
 ### More examples
 
-You can check [`examples/cartpole/demo.ipynb`](https://github.com/HPAI-BSC/pgeon/blob/main/example/cartpole/demo.ipynb) for a complete breakdown of **pgeon**'s features.
+You can check [`examples/cartpole/demo.ipynb`](example/cartpole/demo.ipynb) for a complete breakdown of **pgeon**'s features.
 
 To run the notebook yourself:
 
 1. Download the entire repository.
-2. Install **pgeon**'s requirements with `pip install -r requirements.txt`.
-3. Install an extra dependency, rllib, with `pip install "ray[rllib]"`.
-4. Open and execute `examples/cartpole/demo.ipynb`.
+2. Install **pgeon**'s requirements with `uv sync`
+3. Open and execute `examples/cartpole/demo.ipynb` or `uv run example/cartpole/demo.py`.
 
 ## Citation
 

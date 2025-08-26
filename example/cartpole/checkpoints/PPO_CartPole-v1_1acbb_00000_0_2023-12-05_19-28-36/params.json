@@ -1,5 +1,0 @@
-{
-  "env": "CartPole-v1",
-  "output": "./example/cartpole/",
-  "output_compress_columns": []
-}

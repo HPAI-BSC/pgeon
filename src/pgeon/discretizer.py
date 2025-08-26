@@ -1,21 +1,29 @@
+from __future__ import annotations
+
 import abc
-from dataclasses import dataclass
 from enum import Enum
-from typing import Collection, Iterator, Sequence, Type, Union
+from typing import Collection, FrozenSet, Iterator, Sequence, Type, Union
+
+from pydantic import BaseModel, Field
 
 
-class Predicate:
-    def __init__(self, predicate: Type[Enum], value: Sequence[Enum]):
-        self.predicate: Type[Enum] = predicate
-        self.value: Sequence[Enum] = value
+class Predicate(BaseModel):
+    value: Enum
+
+    def __init__(self, value: Enum):
+        super().__init__(value=value)
+
+    @property
+    def predicate_type(self) -> Type[Enum]:
+        return type(self.value)
 
     def __eq__(self, other):
         if not isinstance(other, Predicate):
             return False
-        return self.predicate == other.predicate and self.value == other.value
+        return self.predicate_type == other.predicate_type and self.value == other.value
 
     def __str__(self):
-        return f"{self.predicate.__name__}({';'.join(str(pred.name) for pred in self.value)})"
+        return f"{self.predicate_type.__name__}({self.value.name})"
 
     def __repr__(self):
         return self.__str__()
@@ -27,51 +35,85 @@ class Predicate:
         if not isinstance(other, Predicate):
             raise ValueError
         else:
-            return hash(self.predicate) < hash(other.predicate)
+            return hash(self.predicate_type) < hash(other.predicate_type)
 
 
-class StateRepresentation(abc.ABC):
-    predicates: Collection[Predicate]
-
+class State(abc.ABC):
     @abc.abstractmethod
-    def __eq__(self, other: "StateRepresentation") -> bool: ...
+    def __eq__(self, other: State) -> bool: ...
 
     @abc.abstractmethod
     def __hash__(self) -> int: ...
 
 
-@dataclass(frozen=True)
-class PredicateBasedStateRepresentation(StateRepresentation):
-    predicates: Collection[Predicate]
+class PredicateBasedState(State, BaseModel):
+    predicates: FrozenSet[Predicate] = Field(frozen=True)
 
-    def __eq__(
-        self, other: Union["PredicateBasedStateRepresentation", tuple[Predicate, ...]]
-    ) -> bool:
-        # If comparing with a tuple, convert the tuple to a list for comparison
+    def __init__(self, predicates: Collection[Predicate]):
+        super().__init__(predicates=frozenset(predicates))
+
+    def __eq__(self, other: Union[PredicateBasedState, tuple[Predicate, ...]]) -> bool:
         if isinstance(other, tuple):
-            # Compare the predicates with the tuple items
             if len(self.predicates) != len(other):
                 return False
-            return all(p1 == p2 for p1, p2 in zip(self.predicates, other))
+            return self.predicates == frozenset(other)
 
-        # If comparing with another StateRepresentation
-        if isinstance(other, StateRepresentation):
-            # If both are StateRepresentation, compare their predicates
+        if isinstance(other, PredicateBasedState):
             if len(self.predicates) != len(other.predicates):
                 return False
-            return all(p1 == p2 for p1, p2 in zip(self.predicates, other.predicates))
-
+            return self.predicates == other.predicates
         return False
 
     def __hash__(self):
-        return hash(tuple(self.predicates))
+        return hash(self.predicates)
+
+    def __lt__(self, other):
+        if not isinstance(other, PredicateBasedState):
+            raise ValueError
+        return hash(self.predicates) < hash(other.predicates)
 
 
 # TODO: allow for more complex representations
 Action = int
 
 
-class Discretizer(metaclass=abc.ABCMeta):
+class Transition(BaseModel):
+    action: Action
+    probability: float = 0.0
+    frequency: int = 0
+
+
+class TransitionData:
+    """A wrapper around Transition that includes from_state and to_state for fluent API."""
+
+    def __init__(self, transition: Transition, from_state: State, to_state: State):
+        self.transition = transition
+        self.from_state = from_state
+        self.to_state = to_state
+
+    @property
+    def action(self) -> Action:
+        return self.transition.action
+
+    @property
+    def probability(self) -> float:
+        return self.transition.probability
+
+    @property
+    def frequency(self) -> int:
+        return self.transition.frequency
+
+    def __getattr__(self, name):
+        """Delegate other attributes to the underlying transition."""
+        return getattr(self.transition, name)
+
+
+class StateMetadata(BaseModel):
+    probability: float = 0.0
+    frequency: int = 0
+
+
+class Discretizer(abc.ABC):
     @classmethod
     def __subclasshook__(cls, subclass):
         return (
@@ -94,7 +136,7 @@ class Discretizer(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def str_to_state(self, state: str) -> StateRepresentation:
+    def str_to_state(self, state: str) -> State:
         pass
 
     @abc.abstractmethod

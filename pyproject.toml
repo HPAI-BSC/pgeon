@@ -17,6 +17,7 @@ dependencies = [
   "ray[rllib]>=2.8.1",
   "torch",
   "gymnasium[classic-control]",
+  "pydantic",
 ]
 requires-python = ">=3.8"
 authors = [
@@ -37,6 +38,11 @@ classifiers = [
   "Development Status :: 5 - Production/Stable",
   "License :: OSI Approved :: MIT License",
   "Programming Language :: Python"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pre-commit"
 ]
 
 [project.urls]

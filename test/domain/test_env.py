@@ -6,10 +6,10 @@ import numpy as np
 from gymnasium.core import ActType, ObsType
 
 from pgeon import Agent, Discretizer, Predicate
-from pgeon.discretizer import PredicateBasedStateRepresentation
+from pgeon.discretizer import PredicateBasedState
 
 
-class State(Enum):
+class DummyState(Enum):
     ZERO = auto()
     ONE = auto()
     TWO = auto()
@@ -46,39 +46,40 @@ class TestingEnv(gymnasium.Env):
         return self.state, 1, self.steps >= 30, self.steps >= 30, {}
 
 
-class TestingAgent(Agent):
-    def __init__(self): ...
-
-    def act(self, _):
-        return 0
-
-
 class TestingDiscretizer(Discretizer):
-    def __init__(self):
-        super(TestingDiscretizer, self).__init__()
-
     def discretize(self, state: np.ndarray) -> Tuple[Predicate]:
-        correct_predicate = [State.ZERO, State.ONE, State.TWO, State.THREE][state[0]]
-        return (Predicate(State, [correct_predicate]),)
+        correct_predicate = [
+            DummyState.ZERO,
+            DummyState.ONE,
+            DummyState.TWO,
+            DummyState.THREE,
+        ][state[0]]
+        return (Predicate(correct_predicate),)
 
     def all_actions(self):
         return [0]
 
-    def get_predicate_space(self) -> List[Tuple[Predicate, ...]]: ...
-
-    def nearest_state(self, state):
+    def nearest_state(self, state: PredicateBasedState):
         while True:
             value = state[0].value[0].value - 1
             yield (
                 Predicate(
-                    State, [State.ZERO, State.ONE, State.TWO, State.THREE][value % 4]
+                    [DummyState.ZERO, DummyState.ONE, DummyState.TWO, DummyState.THREE][
+                        value % 4
+                    ]
                 ),
             )
 
-    def state_to_str(self, state):
-        return state.predicates[0].value[0].name
+    def get_predicate_space(self) -> List[Tuple[Predicate, ...]]:
+        return (DummyState,)
 
-    def str_to_state(self, state_str):
-        return PredicateBasedStateRepresentation(
-            (Predicate(State, [State[state_str]]),)
-        )
+    def state_to_str(self, state: PredicateBasedState):
+        return list(state.predicates)[0].value.name
+
+    def str_to_state(self, state_str: str) -> PredicateBasedState:
+        return PredicateBasedState((Predicate(DummyState[state_str]),))
+
+
+class TestingAgent(Agent):
+    def act(self, _):
+        return 0

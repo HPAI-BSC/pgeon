@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import csv
 import re
@@ -6,31 +8,161 @@ from typing import (
     Any,
     Collection,
     Dict,
+    Generic,
     Iterator,
+    List,
     Optional,
     Tuple,
-    cast,
+    Type,
+    TypeVar,
 )
 
 import networkx as nx
 
-from pgeon.discretizer import Action, Discretizer, StateRepresentation
+from pgeon.discretizer import (
+    Action,
+    Discretizer,
+    State,
+    StateMetadata,
+    Transition,
+    TransitionData,
+)
+
+TStateMetadata = TypeVar("TStateMetadata", bound=StateMetadata)
 
 
-class ProbabilityQuery: ...
+class TransitionView(Generic[TStateMetadata]):
+    """A fluent interface for accessing transitions in a policy representation."""
+
+    def __init__(self, representation: PolicyRepresentation[TStateMetadata]):
+        self._representation = representation
+
+    def __iter__(self) -> Iterator[TransitionData]:
+        """Iterate over all transitions."""
+        for from_state, to_state, data in self._representation._get_all_transitions():
+            transition = Transition.model_validate(data)
+            yield TransitionData(transition, from_state, to_state)
+
+    def __getitem__(self, state: State) -> StateTransitionView[TStateMetadata]:
+        """Get transitions for a specific state."""
+        return StateTransitionView(self._representation, state)
+
+    def __contains__(self, item: Tuple[State, State, Action]) -> bool:
+        """Check if a transition exists."""
+        if len(item) != 3:
+            return False
+        from_state, to_state, action = item
+        return self._representation._has_transition(from_state, to_state, action)
 
 
-class IntentionMixin: ...
+class StateTransitionView(Generic[TStateMetadata]):
+    """A view of transitions for a specific state."""
+
+    def __init__(
+        self, representation: PolicyRepresentation[TStateMetadata], state: State
+    ):
+        self._representation = representation
+        self._state = state
+
+    def __iter__(self) -> Iterator[TransitionData]:
+        """Iterate over all transitions from this state."""
+        for (
+            from_state,
+            to_state,
+            data,
+        ) in self._representation._get_outgoing_transitions(self._state):
+            transition = Transition.model_validate(data)
+            yield TransitionData(transition, from_state, to_state)
+
+    def __getitem__(self, to_state: State) -> Transition:
+        """Get transition to a specific state."""
+        for _, target_state, data in self._representation._get_outgoing_transitions(
+            self._state
+        ):
+            if target_state == to_state:
+                return Transition.model_validate(data)
+        raise KeyError(f"No transition from {self._state} to {to_state}")
+
+    def __setitem__(self, to_state: State, transition: Transition) -> None:
+        """Set transition to a specific state."""
+        self._representation._add_transition(self._state, to_state, transition)
 
 
-class PolicyRepresentation(abc.ABC):
+class StateView(Generic[TStateMetadata]):
+    """A fluent interface for accessing states in a policy representation."""
+
+    def __init__(self, representation: PolicyRepresentation[TStateMetadata]):
+        self._representation = representation
+
+    def __iter__(self) -> Iterator[State]:
+        """Iterate over all states."""
+        return iter(self._representation._get_all_states())
+
+    def __contains__(self, state: State) -> bool:
+        """Check if a state exists."""
+        return self._representation._has_state(state)
+
+    def __getitem__(self, state: State) -> StateMetadataView[TStateMetadata]:
+        """Get metadata for a specific state."""
+        return StateMetadataView(self._representation, state)
+
+    def __setitem__(self, state: State, metadata: TStateMetadata) -> None:
+        """Set metadata for a specific state."""
+        self._representation._add_state(state, metadata)
+
+    @property
+    def metadata(self) -> Dict[State, TStateMetadata]:
+        """Get metadata for all states."""
+        return self._representation._get_all_state_metadata()
+
+
+class StateMetadataView(Generic[TStateMetadata]):
+    """A view of metadata for a specific state."""
+
+    def __init__(
+        self, representation: PolicyRepresentation[TStateMetadata], state: State
+    ):
+        self._representation = representation
+        self._state = state
+
+    @property
+    def metadata(self) -> TStateMetadata:
+        """Get the state's metadata."""
+        return self._representation._get_state_data(self._state)
+
+    @property
+    def predecessors(self) -> Collection[State]:
+        """Get all predecessors of this state."""
+        return self._representation._get_predecessors(self._state)
+
+    @property
+    def successors(self) -> Collection[State]:
+        """Get all successors of this state."""
+        return self._representation._get_possible_next_states(self._state)
+
+
+class PolicyRepresentation(abc.ABC, Generic[TStateMetadata]):
     """
     Abstract base class for policy representations.
     A policy representation stores states, actions, and transitions between states.
     """
 
-    def __init__(self):
+    def __init__(self, state_metadata_class: Type[TStateMetadata] = StateMetadata):
         self._discretizer: Discretizer
+        self.state_metadata_class = state_metadata_class
+        # Initialize fluent API views
+        self._states_view = StateView(self)
+        self._transitions_view = TransitionView(self)
+
+    @property
+    def states(self) -> StateView[TStateMetadata]:
+        """Access states with a fluent API."""
+        return self._states_view
+
+    @property
+    def transitions(self) -> TransitionView[TStateMetadata]:
+        """Access transitions with a fluent API."""
+        return self._transitions_view
 
     @staticmethod
     @abc.abstractmethod
@@ -59,107 +191,105 @@ class PolicyRepresentation(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_possible_actions(self, state: StateRepresentation) -> Collection[Action]:
+    def _get_possible_transitions(self, state: State) -> List[Transition]:
         """Get all possible actions from a state."""
         ...
 
     @abc.abstractmethod
-    def get_possible_next_states(
-        self, state: StateRepresentation, action: Optional[Action] = None
-    ) -> Collection[StateRepresentation]:
+    def _get_possible_next_states(
+        self, state: State, action: Optional[Action] = None
+    ) -> Collection[State]:
         """Get all possible next states from a state, optionally filtered by action."""
         ...
 
     @abc.abstractmethod
-    def has_state(self, state: StateRepresentation) -> bool:
+    def _has_state(self, state: State) -> bool:
         """Check if a state exists in the policy representation."""
         ...
 
     @abc.abstractmethod
-    def add_state(self, state: StateRepresentation, **attributes) -> None:
+    def _get_state_data(self, state: State) -> TStateMetadata:
+        """Get data associated with a specific state."""
+        ...
+
+    @abc.abstractmethod
+    def _add_state(
+        self, state: State, state_metadata: Optional[TStateMetadata] = None
+    ) -> None:
         """Add a state to the policy representation with optional attributes."""
         ...
 
     @abc.abstractmethod
-    def add_states_from(
-        self, states: Collection[StateRepresentation], **attributes
+    def _add_states_from(
+        self,
+        states: Collection[State],
+        state_metadata: Optional[TStateMetadata] = None,
     ) -> None:
         """Add multiple states to the policy representation with optional attributes."""
         ...
 
     @abc.abstractmethod
-    def add_transition(
+    def _add_transition(
         self,
-        from_state: StateRepresentation,
-        to_state: StateRepresentation,
-        action: Action,
-        **attributes,
+        from_state: State,
+        to_state: State,
+        transition: Transition,
     ) -> None:
-        """Add a transition between states with an action and optional attributes."""
+        """Add a transition between states."""
         ...
 
     @abc.abstractmethod
-    def add_transitions_from(
+    def _add_transitions_from(
         self,
-        transitions: Collection[
-            Tuple[StateRepresentation, StateRepresentation, Action]
-        ],
-        **attributes,
+        transitions: Collection[Tuple[State, State, Transition]],
     ) -> None:
-        """Add multiple transitions with optional attributes."""
+        """Add multiple transitions."""
         ...
 
     @abc.abstractmethod
-    def get_transition_data(
+    def _has_transition(
         self,
-        from_state: StateRepresentation,
-        to_state: StateRepresentation,
-        action: Action,
-    ) -> Dict[str, Any]:
-        """Get data associated with a specific transition."""
-        ...
-
-    @abc.abstractmethod
-    def has_transition(
-        self,
-        from_state: StateRepresentation,
-        to_state: StateRepresentation,
+        from_state: State,
+        to_state: State,
         action: Optional[Action] = None,
     ) -> bool:
         """Check if a transition exists."""
         ...
 
     @abc.abstractmethod
-    def get_state_attributes(
-        self, attribute_name: str
-    ) -> Dict[StateRepresentation, Any]:
-        """Get attributes for all states by name."""
+    def _get_all_state_metadata(self) -> Dict[State, TStateMetadata]:
+        """Get metadata for all states."""
         ...
 
     @abc.abstractmethod
-    def set_state_attributes(
-        self, attributes: Dict[StateRepresentation, Any], attribute_name: str
+    def _set_state_metadata(
+        self, state_to_state_metadata: Dict[State, TStateMetadata]
     ) -> None:
-        """Set attributes for states."""
+        """Set metadata for states."""
         ...
 
     @abc.abstractmethod
-    def get_all_states(self) -> Collection[StateRepresentation]:
+    def _get_all_states(self) -> Collection[State]:
         """Get all states in the policy representation."""
         ...
 
     @abc.abstractmethod
-    def get_all_transitions(
-        self, include_data: bool = False
-    ) -> Collection[Tuple[StateRepresentation, StateRepresentation, Dict[str, Any]],]:
-        """Get all transitions, optionally including associated data."""
+    def _get_all_transitions(
+        self,
+    ) -> Collection[Tuple[State, State, Dict[str, Any]],]:
+        """Get all transitions, including associated data."""
         ...
 
     @abc.abstractmethod
-    def get_outgoing_transitions(
-        self, state: StateRepresentation, include_data: bool = False
-    ) -> Collection[Tuple[StateRepresentation, StateRepresentation, Dict[str, Any]],]:
+    def _get_outgoing_transitions(
+        self, state: State
+    ) -> Collection[Tuple[State, State, Dict[str, Any]],]:
         """Get all transitions originating from a state."""
+        ...
+
+    @abc.abstractmethod
+    def _get_predecessors(self, state: State) -> Collection[State]:
+        """Get all predecessors of a state."""
         ...
 
     @abc.abstractmethod
@@ -168,14 +298,19 @@ class PolicyRepresentation(abc.ABC):
         ...
 
     @abc.abstractmethod
-    def get_transitions_from_state(
-        self, state: StateRepresentation
-    ) -> Dict[Action, Collection[StateRepresentation]]:
+    def _get_transitions_from_state(
+        self, state: State
+    ) -> Dict[Action, Collection[State]]:
         """Get a mapping of actions to possible next states from a given state."""
         ...
 
+    @abc.abstractmethod
+    def add_trajectory(self, trajectory: list[Any]) -> None:
+        """Add a trajectory to the policy representation."""
+        ...
 
-class GraphRepresentation(PolicyRepresentation):
+
+class GraphRepresentation(PolicyRepresentation[TStateMetadata]):
     """
     A policy representation implemented using a graph structure.
     States are represented as nodes, and transitions as edges.
@@ -186,41 +321,32 @@ class GraphRepresentation(PolicyRepresentation):
         """Abstract base class for graph implementations."""
 
         @abc.abstractmethod
-        def add_node(self, node: StateRepresentation, **kwargs) -> None: ...
+        def add_node(self, node: State, **kwargs) -> None: ...
 
         @abc.abstractmethod
-        def add_nodes_from(
-            self, nodes: Collection[StateRepresentation], **kwargs
-        ) -> None: ...
+        def add_nodes_from(self, nodes: Collection[State], **kwargs) -> None: ...
 
         @abc.abstractmethod
-        def add_edge(
-            self, node_from: StateRepresentation, node_to: StateRepresentation, **kwargs
-        ) -> None: ...
+        def add_edge(self, node_from: State, node_to: State, **kwargs) -> None: ...
 
         @abc.abstractmethod
         def add_edges_from(
             self,
-            edges: Collection[Tuple[StateRepresentation, StateRepresentation, Any]],
+            edges: Collection[Tuple[State, State, Any]],
             **kwargs,
         ) -> None: ...
 
         @abc.abstractmethod
-        def get_edge_data(
-            self, node_from: StateRepresentation, node_to: StateRepresentation, key: Any
-        ) -> Dict[str, Any]: ...
+        def has_node(self, node: State) -> bool: ...
 
         @abc.abstractmethod
-        def has_node(self, node: StateRepresentation) -> bool: ...
-
-        @abc.abstractmethod
-        def get_node(self, node: StateRepresentation) -> Dict[str, Any]: ...
+        def get_node(self, node: State) -> Dict[str, Any]: ...
 
         @abc.abstractmethod
         def has_edge(
             self,
-            node_from: StateRepresentation,
-            node_to: StateRepresentation,
+            node_from: State,
+            node_to: State,
             key: Any = None,
         ) -> bool: ...
 
@@ -231,25 +357,27 @@ class GraphRepresentation(PolicyRepresentation):
         def edges(self, data: bool = False) -> Iterator: ...
 
         @abc.abstractmethod
-        def out_edges(
-            self, node: StateRepresentation, data: bool = False
-        ) -> Iterator: ...
+        def out_edges(self, node: State, data: bool = False) -> Iterator: ...
 
         @abc.abstractmethod
-        def get_node_attributes(
-            self, attribute_name: str
-        ) -> Dict[StateRepresentation, Any]: ...
+        def predecessors(self, node: State) -> Iterator: ...
+
+        @abc.abstractmethod
+        def get_node_attributes(self, attribute_name: str) -> Dict[State, Any]: ...
 
         @abc.abstractmethod
         def set_node_attributes(
-            self, attributes: Dict[StateRepresentation, Any], attribute_name: str
+            self, attributes: Dict[State, Any], attribute_name: str
         ) -> None: ...
 
         @abc.abstractmethod
         def clear(self) -> None: ...
 
         @abc.abstractmethod
-        def __getitem__(self, node: StateRepresentation) -> Any: ...
+        def __getitem__(self, node: State) -> TStateMetadata: ...
+
+        @abc.abstractmethod
+        def __setitem__(self, node: State, metadata: TStateMetadata) -> None: ...
 
         # TODO: Make the return type include other possible backends
         @property
@@ -259,52 +387,45 @@ class GraphRepresentation(PolicyRepresentation):
     class NetworkXGraph(Graph):
         """NetworkX implementation of the Graph interface."""
 
-        def __init__(self):
+        def __init__(self, state_metadata_class: Type[TStateMetadata] = StateMetadata):
             # Not calling super().__init__() since Graph is an ABC
             self._nx_graph = nx.MultiDiGraph()
+            self.state_metadata_class = state_metadata_class
 
-        def __getitem__(self, node: StateRepresentation) -> Any:
-            return cast(
-                Dict[StateRepresentation, Dict[Any, Dict[str, Any]]],
-                self._nx_graph[node],
-            )
+        def __getitem__(self, node: State) -> TStateMetadata:
+            return self.state_metadata_class.model_validate(self._nx_graph.nodes[node])
 
-        def add_node(self, node: StateRepresentation, **kwargs) -> None:
+        def __setitem__(self, node: State, metadata: TStateMetadata) -> None:
+            if not self._nx_graph.has_node(node):
+                self._nx_graph.add_node(node)
+            self._nx_graph.nodes[node].update(metadata.model_dump())
+
+        def add_node(self, node: State, **kwargs) -> None:
             self._nx_graph.add_node(node, **kwargs)
 
-        def add_nodes_from(
-            self, nodes: Collection[StateRepresentation], **kwargs
-        ) -> None:
+        def add_nodes_from(self, nodes: Collection[State], **kwargs) -> None:
             self._nx_graph.add_nodes_from(nodes, **kwargs)
 
-        def add_edge(
-            self, node_from: StateRepresentation, node_to: StateRepresentation, **kwargs
-        ) -> None:
+        def add_edge(self, node_from: State, node_to: State, **kwargs) -> None:
             self._nx_graph.add_edge(node_from, node_to, **kwargs)
 
         def add_edges_from(
             self,
-            edges: Collection[Tuple[StateRepresentation, StateRepresentation, Any]],
+            edges: Collection[Tuple[State, State, Any]],
             **kwargs,
         ) -> None:
             self._nx_graph.add_edges_from(edges, **kwargs)
 
-        def get_edge_data(
-            self, node_from: StateRepresentation, node_to: StateRepresentation, key: Any
-        ) -> Dict[str, Any]:
-            data = self._nx_graph.get_edge_data(node_from, node_to, key)
-            return cast(Dict[str, Any], data) if data else {}
-
-        def has_node(self, node: StateRepresentation) -> bool:
+        def has_node(self, node: State) -> bool:
             return self._nx_graph.has_node(node)
 
-        def get_node(self, node: StateRepresentation) -> Dict[str, Any]:
+        def get_node(self, node: State) -> Dict[str, Any]:
             return self._nx_graph.nodes[node]
 
         def has_edge(
             self,
-            node_from: StateRepresentation,
-            node_to: StateRepresentation,
+            node_from: State,
+            node_to: State,
             key: Any = None,
         ) -> bool:
             return self._nx_graph.has_edge(node_from, node_to, key)
@@ -316,17 +437,18 @@ class GraphRepresentation(PolicyRepresentation):
             return self._nx_graph.edges(data=data)
 
         def out_edges(
-            self, node: StateRepresentation, data: bool = False
+            self, node: State, data: bool = False
         ) -> nx.reportviews.OutMultiEdgeView:
             return self._nx_graph.out_edges(node, data=data)
 
-        def get_node_attributes(
-            self, attribute_name: str
-        ) -> Dict[StateRepresentation, Any]:
+        def predecessors(self, node: State) -> Iterator:
+            return self._nx_graph.predecessors(node)
+
+        def get_node_attributes(self, attribute_name: str) -> Dict[State, Any]:
             return nx.get_node_attributes(self._nx_graph, attribute_name)
 
         def set_node_attributes(
-            self, attributes: Dict[StateRepresentation, Any], attribute_name: str
+            self, attributes: Dict[State, Any], attribute_name: str
         ) -> None:
             nx.set_node_attributes(self._nx_graph, attributes, attribute_name)
 
@@ -337,136 +459,146 @@ class GraphRepresentation(PolicyRepresentation):
         def backend(self) -> nx.MultiDiGraph:
             return self._nx_graph
 
-    def __init__(self, graph_backend: str = "networkx"):
-        super().__init__()
+    def __init__(
+        self,
+        graph_backend: str = "networkx",
+        state_metadata_class: Type[TStateMetadata] = StateMetadata,
+    ):
+        super().__init__(state_metadata_class=state_metadata_class)
         # p(s) and p(s',a | s)
         self.graph: GraphRepresentation.Graph
+        self.discretizer: Discretizer
         if graph_backend == "networkx":
-            self.graph = GraphRepresentation.NetworkXGraph()
+            self.graph = GraphRepresentation.NetworkXGraph(
+                state_metadata_class=state_metadata_class
+            )
         else:
             raise NotImplementedError(f"Graph backend {graph_backend} not implemented")
 
-    def prob(self, query: ProbabilityQuery) -> float:
-        """Calculate probability for a given query."""
-        # TODO: Currently on AbstractIPG class
-        ...
-
     # Implementation of PolicyRepresentation interface using graph terminology
-    def get_possible_actions(self, state: StateRepresentation) -> Collection[Action]:
-        """Get all possible actions from a state."""
-        if not self.has_state(state):
+    def _get_possible_transitions(self, state: State) -> List[Transition]:
+        """Get all possible transitions from a state with their probabilities."""
+        if not self._has_state(state):
             return []
-        actions = set()
-        for _, _, data in self.graph.out_edges(state, data=True):
-            if "action" in data:
-                actions.add(data["action"])
-        return list(actions)
 
-    def get_possible_next_states(
-        self, state: StateRepresentation, action: Optional[Action] = None
-    ) -> Collection[StateRepresentation]:
+        transitions = []
+        for _, _, data in self.graph.out_edges(state, data=True):
+            transitions.append(Transition.model_validate(data))
+
+        return sorted(transitions, key=lambda item: item.probability, reverse=True)
+
+    def _get_possible_next_states(
+        self, state: State, action: Optional[Action] = None
+    ) -> Collection[State]:
         """Get all possible next states from a state, optionally filtered by action."""
-        if not self.has_state(state):
+        if not self._has_state(state):
             return []
         if action is None:
             return [to_state for _, to_state in self.graph.out_edges(state)]
         next_states = []
         for _, to_state, data in self.graph.out_edges(state, data=True):
-            if "action" in data and data["action"] == action:
+            transition = Transition.model_validate(data)
+            if transition.action == action:
                 next_states.append(to_state)
         return next_states
 
-    def has_state(self, state: StateRepresentation) -> bool:
+    def _has_state(self, state: State) -> bool:
         """Check if a state exists in the policy representation."""
         return self.graph.has_node(state)
 
-    def add_state(self, state: StateRepresentation, **attributes) -> None:
-        """Add a state to the policy representation with optional attributes."""
-        self.graph.add_node(state, **attributes)
+    def _get_state_data(self, state: State) -> TStateMetadata:
+        """Get data associated with a specific state."""
+        return self.state_metadata_class.model_validate(self.graph.get_node(state))
 
-    def add_states_from(
-        self, states: Collection[StateRepresentation], **attributes
+    def _add_state(
+        self, state: State, state_metadata: Optional[TStateMetadata] = None
+    ) -> None:
+        """Add a state to the policy representation with optional attributes."""
+        if state_metadata is None:
+            state_metadata = self.state_metadata_class()
+        self.graph.add_node(state, **state_metadata.model_dump())
+
+    def _add_states_from(
+        self,
+        states: Collection[State],
+        state_metadata: Optional[TStateMetadata] = None,
     ) -> None:
         """Add multiple states to the policy representation with optional attributes."""
-        self.graph.add_nodes_from(states, **attributes)
+        if state_metadata is None:
+            state_metadata = self.state_metadata_class()
+        self.graph.add_nodes_from(states, **state_metadata.model_dump())
 
-    def add_transition(
+    def _add_transition(
         self,
-        from_state: StateRepresentation,
-        to_state: StateRepresentation,
-        action: Action,
-        **attributes,
+        from_state: State,
+        to_state: State,
+        transition: Transition,
     ) -> None:
         """Add a transition between states with an action and optional attributes."""
-        all_attributes = attributes.copy()
-        all_attributes["action"] = action
-        self.graph.add_edge(from_state, to_state, key=action, **all_attributes)
+        self.graph.add_edge(
+            from_state, to_state, key=transition.action, **transition.model_dump()
+        )
 
-    def add_transitions_from(
+    def _add_transitions_from(
         self,
-        transitions: Collection[
-            Tuple[StateRepresentation, StateRepresentation, Action]
-        ],
-        **attributes,
+        transitions: Collection[Tuple[State, State, Transition]],
     ) -> None:
         """Add multiple transitions with optional attributes."""
-        for from_state, to_state, action in transitions:
-            self.add_transition(from_state, to_state, action, **attributes)
+        for from_state, to_state, transition in transitions:
+            self._add_transition(
+                from_state,
+                to_state,
+                transition,
+            )
 
-    def get_transition_data(
+    def _has_transition(
         self,
-        from_state: StateRepresentation,
-        to_state: StateRepresentation,
-        action: Action,
-    ) -> Dict[str, Any]:
-        """Get data associated with a specific transition."""
-        data = self.graph.get_edge_data(from_state, to_state, action)
-        return data if data else {}
-
-    def has_transition(
-        self,
-        from_state: StateRepresentation,
-        to_state: StateRepresentation,
+        from_state: State,
+        to_state: State,
         action: Optional[Action] = None,
     ) -> bool:
         """Check if a transition exists."""
         return self.graph.has_edge(from_state, to_state, action)
 
-    def get_state_attributes(
-        self, attribute_name: str
-    ) -> Dict[StateRepresentation, Any]:
-        """Get attributes for all states by name."""
-        return self.graph.get_node_attributes(attribute_name)
+    def _get_all_state_metadata(self) -> Dict[State, TStateMetadata]:
+        """Get metadata for all states."""
+        return {
+            state: self.state_metadata_class.model_validate(data)
+            for state, data in self.graph.nodes(data=True)
+        }
 
-    def set_state_attributes(
-        self, attributes: Dict[StateRepresentation, Any], attribute_name: str
+    def _set_state_metadata(
+        self, state_to_state_metadata: Dict[State, TStateMetadata]
     ) -> None:
-        """Set attributes for states."""
-        self.graph.set_node_attributes(attributes, attribute_name)
+        """Set metadata for states."""
+        for state, metadata in state_to_state_metadata.items():
+            self.graph.get_node(state).update(metadata.model_dump())
 
-    def get_all_states(self) -> Collection[StateRepresentation]:
+    def _get_all_states(self) -> Collection[State]:
         """Get all states in the policy representation."""
         return list(self.graph.nodes())
 
-    def get_all_transitions(self, include_data: bool = False) -> Collection:
-        """Get all transitions, optionally including associated data."""
-        return list(self.graph.edges(data=include_data))
+    def _get_all_transitions(self) -> Collection:
+        """Get all transitions, including associated data."""
+        return list(self.graph.edges(data=True))
 
-    def get_outgoing_transitions(
-        self, state: StateRepresentation, include_data: bool = False
-    ) -> Collection:
+    def _get_outgoing_transitions(self, state: State) -> Collection:
         """Get all transitions originating from a state."""
-        return list(self.graph.out_edges(state, data=include_data))
+        return list(self.graph.out_edges(state, data=True))
+
+    def _get_predecessors(self, state: State) -> Collection[State]:
+        """Get all predecessors of a state."""
+        return list(self.graph.predecessors(state))
 
     def clear(self) -> None:
         """Clear all states and transitions."""
         self.graph.clear()
 
-    def get_transitions_from_state(
-        self, state: StateRepresentation
-    ) -> Dict[Action, Collection[StateRepresentation]]:
+    def _get_transitions_from_state(
+        self, state: State
+    ) -> Dict[Action, Collection[State]]:
         """Get a mapping of actions to possible next states from a given state."""
-        if not self.has_state(state):
+        if not self._has_state(state):
             return {}
 
         result = {}
@@ -478,71 +610,31 @@ class GraphRepresentation(PolicyRepresentation):
                 result[action].append(to_state)
         return result
 
-    # Legacy methods for backward compatibility
-    def has_node(self, node: StateRepresentation) -> bool:
-        return self.has_state(node)
-
-    def add_node(self, node: StateRepresentation, **kwargs) -> None:
-        self.add_state(node, **kwargs)
-
-    def get_node(self, node: StateRepresentation) -> Dict[str, Any]:
-        return self.graph.get_node(node)
-
-    def add_nodes_from(self, nodes: Collection[StateRepresentation], **kwargs) -> None:
-        self.add_states_from(nodes, **kwargs)
-
-    def add_edge(
-        self, node_from: StateRepresentation, node_to: StateRepresentation, **kwargs
-    ) -> None:
-        action = kwargs.pop("action", None)
-        if action is not None:
-            self.add_transition(node_from, node_to, action, **kwargs)
+    def add_trajectory(self, trajectory: list[Any]) -> None:
+        """Adds a trajectory to the graph.
+        A trajectory is a list of (state, action) tuples or (state, action, next_state) tuples.
+        """
+        if isinstance(trajectory[0], int):
+            for i in range(0, len(trajectory), 2):
+                if i + 2 < len(trajectory):
+                    state_from = trajectory[i]
+                    action = trajectory[i + 1]
+                    state_to = trajectory[i + 2]
+                    self._add_transition(
+                        state_from, state_to, Transition(action=action, frequency=1)
+                    )
+        elif len(trajectory[0]) == 2:
+            for i in range(len(trajectory) - 1):
+                state_from, action = trajectory[i]
+                state_to, _ = trajectory[i + 1]
+                self._add_transition(
+                    state_from, state_to, Transition(action=action, frequency=1)
+                )
         else:
-            self.graph.add_edge(node_from, node_to, **kwargs)
-
-    def add_edges_from(
-        self,
-        edges: Collection[Tuple[StateRepresentation, StateRepresentation, Action]],
-        **kwargs,
-    ) -> None:
-        self.add_transitions_from(edges, **kwargs)
-
-    def get_edge_data(
-        self, node_from: StateRepresentation, node_to: StateRepresentation, key: Any
-    ) -> Dict:
-        return self.get_transition_data(node_from, node_to, key)
-
-    def has_edge(
-        self,
-        node_from: StateRepresentation,
-        node_to: StateRepresentation,
-        key: Any = None,
-    ) -> bool:
-        return self.has_transition(node_from, node_to, key)
-
-    def get_node_attributes(self, name: str) -> Dict[StateRepresentation, Any]:
-        return self.get_state_attributes(name)
-
-    def set_node_attributes(
-        self, attributes: Dict[StateRepresentation, Any], name: str
-    ) -> None:
-        self.set_state_attributes(attributes, name)
-
-    def nodes(self) -> Collection[StateRepresentation]:
-        return self.get_all_states()
-
-    def edges(self, data: bool = False):
-        return self.get_all_transitions(include_data=data)
-
-    def out_edges(self, node: StateRepresentation, data: bool = False):
-        return self.get_outgoing_transitions(node, include_data=data)
-
-    def __getitem__(self, state: StateRepresentation) -> Any:
-        """Get the transitions from a state, organized by destination state."""
-        return self.graph[state]
-
-    # minimum P(s',a|p) forall possible probs.
-    def get_overall_minimum_state_transition_probability(self) -> float: ...
+            for state_from, action, state_to in trajectory:
+                self._add_transition(
+                    state_from, state_to, Transition(action=action, frequency=1)
+                )
 
     @staticmethod
     def load_csv(
@@ -591,13 +683,10 @@ class GraphRepresentation(PolicyRepresentation):
                 prob = float(prob)
                 freq = int(freq)
 
-                representation.graph.add_edge(
+                representation._add_transition(
                     node_from,
                     node_to,
-                    key=action,
-                    frequency=freq,
-                    probability=prob,
-                    action=action,
+                    Transition(action=action, frequency=freq, probability=prob),
                 )
         return representation
 
@@ -607,11 +696,6 @@ class GraphRepresentation(PolicyRepresentation):
         if not edges_path.suffix == ".csv":
             raise ValueError(f"Edges file must have a .csv extension, got {edges_path}")
 
-        if nodes_path.exists():
-            raise FileExistsError(f"Nodes file {nodes_path} already exists")
-        if edges_path.exists():
-            raise FileExistsError(f"Edges file {edges_path} already exists")
-
         nodes_path.parent.mkdir(parents=True, exist_ok=True)
         edges_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -619,52 +703,54 @@ class GraphRepresentation(PolicyRepresentation):
         with open(nodes_path, "w+") as f:
             csv_w = csv.writer(f)
             csv_w.writerow(["id", "value", "p(s)", "frequency"])
-            for elem_position, node in enumerate(self.nodes()):
+            for elem_position, node in enumerate(self._get_all_states()):
                 node_ids[node] = elem_position
                 csv_w.writerow(
                     [
                         elem_position,
                         discretizer.state_to_str(node),
-                        self.get_node(node).get("probability", 0),
-                        self.get_node(node).get("frequency", 0),
+                        self.graph.get_node(node).get("probability", 0),
+                        self.graph.get_node(node).get("frequency", 0),
                     ]
                 )
 
         with open(edges_path, "w+") as f:
             csv_w = csv.writer(f)
             csv_w.writerow(["from", "to", "action", "p(s)", "frequency"])
-            for edge in self.edges(data=True):
-                state_from, state_to, action = edge
+            for edge in self._get_all_transitions():
+                state_from, state_to, data = edge
+                transition = Transition.model_validate(data)
                 csv_w.writerow(
                     [
                         node_ids[state_from],
                         node_ids[state_to],
-                        action.get("action", None),
-                        action.get("probability", 0),
-                        action.get("frequency", 0),
+                        transition.action,
+                        transition.probability,
+                        transition.frequency,
                     ]
                 )
 
     def save_gram(self, discretizer: Discretizer, path: Path):
         if not path.suffix == ".gram":
             raise ValueError(f"File must have a .gram extension, got {path}")
-        if path.exists():
-            raise FileExistsError(f"File {path} already exists")
         path.parent.mkdir(parents=True, exist_ok=True)
 
         node_info = {
             node: {
                 "id": i,
                 "value": discretizer.state_to_str(node),
-                "probability": self.get_node(node).get("probability", 0),
-                "frequency": self.get_node(node).get("frequency", 0),
+                "probability": self.graph.get_node(node).get("probability", 0),
+                "frequency": self.graph.get_node(node).get("frequency", 0),
             }
-            for i, node in enumerate(self.nodes())
+            for i, node in enumerate(self._get_all_states())
         }
         action_info = {
             action: {"id": i, "value": str(action)}
             for i, action in enumerate(
-                set(data.get("action") for _, _, data in self.edges(data=True))
+                set(
+                    Transition.model_validate(data).action
+                    for _, _, data in self._get_all_transitions()
+                )
             )
         }
 
@@ -688,14 +774,15 @@ class GraphRepresentation(PolicyRepresentation):
                 )
 
             # Write edges
-            for edge in self.edges(data=True):
+            for edge in self._get_all_transitions():
                 n_from, n_to, data = edge
-                action = data.get("action")
+                transition = Transition.model_validate(data)
+                action = transition.action
                 if action is not None:
                     f.write(
                         f'\nMATCH (s{node_info[n_from]["id"]}:State) WHERE s{node_info[n_from]["id"]}.uid = "s{node_info[n_from]["id"]}" MATCH (s{node_info[n_to]["id"]}:State) WHERE s{node_info[n_to]["id"]}.uid = "s{node_info[n_to]["id"]}" CREATE (s{node_info[n_from]["id"]})-[:a{action_info[action]["id"]} '
                         + "{"
-                        + f"probability:{data.get('probability', 0)}, frequency:{data.get('frequency', 0)}"
+                        + f"probability:{transition.probability}, frequency:{transition.frequency}"
                         + "}"
                         + f"]->(s{node_info[n_to]['id']});"
                     )
@@ -742,10 +829,12 @@ class GraphRepresentation(PolicyRepresentation):
                 if "value" not in attrs:
                     return i, None
                 state = discretizer.str_to_state(attrs["value"])
-                representation.add_state(
+                representation._add_state(
                     state,
-                    probability=attrs.get("probability", 0),
-                    frequency=attrs.get("frequency", 0),
+                    StateMetadata(
+                        probability=attrs.get("probability", 0),
+                        frequency=attrs.get("frequency", 0),
+                    ),
                 )
                 node_info[node_id] = state
                 return i, node_id
@@ -761,7 +850,6 @@ class GraphRepresentation(PolicyRepresentation):
             if "{" in action_block and "}" in action_block:
                 attrs_str = action_block.split("{", 1)[1].rsplit("}", 1)[0]
                 action_id = int(action_block.split("a")[1].split(":")[0])
-                attrs = {}
                 for attr in attrs_str.split(","):
                     attr = attr.strip()
                     if not attr or ":" not in attr:
@@ -800,12 +888,12 @@ class GraphRepresentation(PolicyRepresentation):
                     freq = int(attr.split(":", 1)[1])
             if from_id not in node_info or to_id not in node_info:
                 return
-            representation.add_transition(
+            representation._add_transition(
                 node_info[from_id],
                 node_info[to_id],
-                action_info[action_id],
-                probability=prob,
-                frequency=freq,
+                Transition(
+                    action=action_info[action_id], probability=prob, frequency=freq
+                ),
             )
 
         with open(path, "r") as f:
@@ -826,6 +914,3 @@ class GraphRepresentation(PolicyRepresentation):
                 i += 1
 
         return representation
-
-
-class IntentionalPolicyGraphRepresentation(GraphRepresentation, IntentionMixin): ...

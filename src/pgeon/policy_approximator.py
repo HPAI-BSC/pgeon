@@ -1,57 +1,224 @@
+from __future__ import annotations
+
 import abc
-import random
-from collections import defaultdict
+import csv
+import pickle
 from enum import Enum, auto
+from pathlib import Path
 from typing import (
     Any,
     Dict,
+    Generic,
     List,
     Optional,
     Tuple,
     Union,
-    cast,
 )
 
 import numpy as np
 import tqdm
-from gymnasium import Env
 
 from pgeon.agent import Agent
-from pgeon.discretizer import Action, Discretizer, StateRepresentation
-from pgeon.policy_representation import PolicyRepresentation
+from pgeon.discretizer import (
+    Action,
+    Discretizer,
+    PredicateBasedState,
+    State,
+    StateMetadata,
+    Transition,
+)
+from pgeon.environment import Environment
+from pgeon.policy_representation import (
+    GraphRepresentation,
+    PolicyRepresentation,
+    TStateMetadata,
+)
 
 
-class Desire: ...
-
-
-class PolicyApproximator(abc.ABC):
+class PolicyApproximator(abc.ABC, Generic[TStateMetadata]):
+    """Abstract base class for policy approximators."""
 
     def __init__(
-        self, discretizer: Discretizer, policy_representation: PolicyRepresentation
+        self,
+        discretizer: Discretizer,
+        policy_representation: PolicyRepresentation[TStateMetadata],
     ):
-        self.discretizer: Discretizer = discretizer
-        self.policy_representation: PolicyRepresentation = policy_representation
+        self.discretizer = discretizer
+        self.policy_representation = policy_representation
         self._is_fit = False
         self._trajectories_of_last_fit: List[List[Any]] = []
 
-    @abc.abstractmethod
+    def get_nearest_state(self, state: State, verbose: bool = False) -> Optional[State]:
+        """Get the nearest state in the policy representation to a given state."""
+        if state in self.policy_representation.states:
+            return state
+
+        input_preds = state.predicates
+        all_states = list(self.policy_representation.states)
+        if not all_states:
+            return None
+
+        max_similarity = -1
+        nearest_state = None
+
+        for s in all_states:
+            similarity = 0
+            for p1, p2 in zip(input_preds, s.predicates):
+                if p1 == p2:
+                    similarity += 1
+            if similarity > max_similarity:
+                max_similarity = similarity
+                nearest_state = s
+
+        if verbose:
+            print("\tNEAREST STATE in representation:", nearest_state)
+        return nearest_state
+
+    @staticmethod
+    def from_pickle(path: str):
+        path_includes_pickle = path[-7:] == ".pickle"
+        with open(f"{path}{'' if path_includes_pickle else '.pickle'}", "rb") as f:
+            return pickle.load(f)
+
     def save(self, format: str, path: Union[str, List[str]]):
-        """Save the policy approximator"""
-        ...
+        if not self._is_fit:
+            raise Exception("Policy Approximator cannot be saved before fitting!")
+
+        if format not in ["pickle", "csv", "gram"]:
+            raise NotImplementedError("format must be one of pickle, csv or gram")
+
+        if format == "csv":
+            assert (
+                len(path) == 2
+            ), "When saving in CSV format, path must be a list of 2 elements (nodes, edges)!"
+            self._save_csv(*path)
+        elif format == "gram":
+            assert isinstance(
+                path, str
+            ), "When saving in gram format, path must be a string!"
+            self._save_gram(path)
+        elif format == "pickle":
+            assert isinstance(
+                path, str
+            ), "When saving in pickle format, path must be a string!"
+            self._save_pickle(path)
+        else:
+            raise NotImplementedError
+
+    def _save_pickle(self, path: str):
+        path_includes_pickle = path[-7:] == ".pickle"
+        with open(f"{path}{'' if path_includes_pickle else '.pickle'}", "wb") as f:
+            pickle.dump(self, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+    def _save_csv(self, path_nodes: str, path_edges: str):
+        self.policy_representation.save_csv(path_nodes, path_edges)
+
+    def _save_gram(self, path: str):
+        self.policy_representation.save_gram(self.discretizer, Path(path))
 
     @abc.abstractmethod
     def fit(self): ...
 
+    def _normalize(self) -> None:
+        state_to_state_metadata = self.policy_representation.states.metadata
+        total_frequency = sum(
+            state_metadata.frequency
+            for state_metadata in state_to_state_metadata.values()
+        )
+        if total_frequency == 0:
+            return
 
-# From agent and environment
-class OnlinePolicyApproximator(PolicyApproximator): ...
+        for state, state_metadata in state_to_state_metadata.items():
+            self.policy_representation.states[state] = state_metadata.model_copy(
+                update={"probability": state_metadata.frequency / total_frequency}
+            )
+
+        for state in self.policy_representation.states:
+            transitions = self.policy_representation.transitions[state]
+            total_transition_frequency = sum(
+                transition_data.frequency for transition_data in transitions
+            )
+
+            if total_transition_frequency > 0:
+                for transition_data in transitions:
+                    transition = transition_data.transition
+                    updated_probability = (
+                        transition.frequency / total_transition_frequency
+                    )
+                    self.policy_representation.transitions[state][
+                        transition_data.to_state
+                    ] = transition.model_copy(
+                        update={"probability": updated_probability}
+                    )
+
+
+class OnlinePolicyApproximator(PolicyApproximator, Generic[TStateMetadata]):
+    @abc.abstractmethod
+    def fit(self, n_episodes: int) -> None: ...
 
 
 # From trajectories
-class OfflinePolicyApproximator(PolicyApproximator): ...
+class OfflinePolicyApproximator(PolicyApproximator, Generic[TStateMetadata]):
+    @staticmethod
+    def from_nodes_and_edges(
+        path_nodes: str,
+        path_edges: str,
+        discretizer: Discretizer,
+    ):
+        policy_representation = GraphRepresentation.load_csv(
+            "networkx", discretizer, Path(path_nodes), Path(path_edges)
+        )
+        approximator = OfflinePolicyApproximator(discretizer, policy_representation)
+        approximator._is_fit = True
+        return approximator
+
+    @staticmethod
+    def from_nodes_and_trajectories(
+        path_nodes: str,
+        path_trajectories: str,
+        discretizer: Discretizer,
+    ):
+        approximator = OfflinePolicyApproximator(discretizer, GraphRepresentation())
+
+        path_to_nodes_includes_csv = Path(path_nodes).suffix == ".csv"
+        path_to_trajs_includes_csv = Path(path_trajectories).suffix == ".csv"
+
+        node_info = {}
+        with open(
+            f"{path_nodes}{'' if path_to_nodes_includes_csv else '.csv'}", "r+"
+        ) as f:
+            csv_r = csv.reader(f)
+            next(csv_r)
+
+            for state_id, value, prob, freq in csv_r:
+                state_prob = float(prob)
+                state_freq = int(freq)
+
+                node_info[int(state_id)] = {
+                    "value": discretizer.str_to_state(value),
+                    "probability": state_prob,
+                    "frequency": state_freq,
+                }
+
+        with open(path_trajectories, "r") as f:
+            csv_r = csv.reader(f, delimiter=" ")
+            next(csv_r)  # Skip header
+            for row in csv_r:
+                trajectory = [int(x) for x in row]
+                approximator.policy_representation.add_trajectory(trajectory)
+                approximator._trajectories_of_last_fit.append(trajectory)
+
+        approximator._is_fit = True
+        approximator._normalize()
+        return approximator
+
+    def fit(self):
+        raise NotImplementedError("OfflinePolicyApproximator is not fittable")
 
 
-class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
+class PolicyApproximatorFromBasicObservation(
+    OnlinePolicyApproximator[TStateMetadata], Generic[TStateMetadata]
+):
     """
     Policy approximator that approximates the policy from basic observations,
     given an agent and an environment.
@@ -60,8 +227,8 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
     def __init__(
         self,
         discretizer: Discretizer,
-        policy_representation: PolicyRepresentation,
-        environment: Env,
+        policy_representation: PolicyRepresentation[TStateMetadata],
+        environment: Environment,
         agent: Agent,
     ):
         super().__init__(discretizer, policy_representation)
@@ -90,97 +257,66 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
         return trajectory
 
-    def _update_with_trajectory(self, trajectory: List[Any]) -> None:
+    def _update_with_trajectory(self, trajectory: List[Tuple[State, Action]]):
         # Only even numbers are states
         states_in_trajectory = [
             trajectory[i] for i in range(len(trajectory)) if i % 2 == 0
         ]
         all_new_states_in_trajectory = {
-            state
+            PredicateBasedState(state)
             for state in set(states_in_trajectory)
-            if not self.policy_representation.has_state(state)
+            if PredicateBasedState(state) not in self.policy_representation.states
         }
-        self.policy_representation.add_states_from(
-            all_new_states_in_trajectory, frequency=0
-        )
+        for state in all_new_states_in_trajectory:
+            self.policy_representation.states[state] = StateMetadata()
 
-        state_frequencies = {
-            s: states_in_trajectory.count(s) for s in set(states_in_trajectory)
-        }
+        for state in states_in_trajectory:
+            state_representation = PredicateBasedState(state)
+            state_metadata = self.policy_representation.states[
+                state_representation
+            ].metadata
 
-        states = self.policy_representation.get_all_states()
-        for state in state_frequencies:
-            for node in states:
-                if node == state:
-                    state_attrs = self.policy_representation.get_state_attributes(
-                        "frequency"
-                    )
-                    state_attrs[node] += state_frequencies[state]
-                    self.policy_representation.set_state_attributes(
-                        {node: state_attrs[node]}, "frequency"
-                    )
-                    break
+            updated_metadata = state_metadata.model_copy(
+                update={
+                    "frequency": state_metadata.frequency + 1,
+                    "probability": state_metadata.probability,
+                },
+            )
+            self.policy_representation.states[state_representation] = updated_metadata
 
         pointer = 0
         while (pointer + 1) < len(trajectory):
             state_from, action, state_to = trajectory[pointer : pointer + 3]
-            if not self.policy_representation.has_transition(
-                state_from, state_to, action
-            ):
-                self.policy_representation.add_transition(
-                    state_from, state_to, action, frequency=0
+            state_from = PredicateBasedState(state_from)
+            state_to = PredicateBasedState(state_to)
+            if (
+                state_from,
+                state_to,
+                action,
+            ) not in self.policy_representation.transitions:
+                self.policy_representation.transitions[state_from][state_to] = (
+                    Transition(action=action, frequency=1)
                 )
-
-            edge_data = self.policy_representation.get_transition_data(
-                state_from, state_to, action
-            )
-            if edge_data:
-                edge_data["frequency"] += 1
+            else:
+                edge_data = self.policy_representation.transitions[state_from][state_to]
+                if edge_data:
+                    updated_transition = edge_data.model_copy(
+                        update={"frequency": edge_data.frequency + 1}
+                    )
+                    self.policy_representation.graph._nx_graph.remove_edge(
+                        state_from, state_to, key=action
+                    )
+                    self.policy_representation.transitions[state_from][
+                        state_to
+                    ] = updated_transition
             pointer += 2
-
-    def _normalize(self) -> None:
-        weights = self.policy_representation.get_state_attributes("frequency")
-        total_frequency = sum([weights[state] for state in weights])
-        self.policy_representation.set_state_attributes(
-            {state: weights[state] / total_frequency for state in weights},
-            "probability",
-        )
-
-        for state in self.policy_representation.get_all_states():
-            transitions = self.policy_representation.get_outgoing_transitions(
-                state, include_data=True
-            )
-            total_frequency = 0
-
-            for transition in transitions:
-                if len(transition) >= 3:  # Check if we have data
-                    _, _, data = transition
-                    if isinstance(data, dict) and "frequency" in data:
-                        total_frequency += data["frequency"]
-
-            if total_frequency > 0:
-                for transition in transitions:
-                    if len(transition) >= 3:  # Check if we have data
-                        _, dest_state, data = transition
-                        if isinstance(data, dict) and "frequency" in data:
-                            action_val = data.get("action")
-                            if action_val is not None:
-                                edge_data = (
-                                    self.policy_representation.get_transition_data(
-                                        state, dest_state, action_val
-                                    )
-                                )
-                                if edge_data:
-                                    edge_data["probability"] = (
-                                        edge_data["frequency"] / total_frequency
-                                    )
 
     def fit(
         self,
         n_episodes: int = 10,
         max_steps: Optional[int] = None,
         update: bool = False,
-    ) -> "PolicyApproximatorFromBasicObservation":
+    ) -> PolicyApproximatorFromBasicObservation:
         assert (
             n_episodes > 0
         ), "The number of episodes must be a positive integer number!"
@@ -205,152 +341,64 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
         return self
 
-    def get_nearest_predicate(
-        self,
-        input_predicate: Union[StateRepresentation, Tuple[Enum, ...]],
-        verbose: bool = False,
-    ) -> StateRepresentation:
-        """Returns the nearest predicate on the representation. If already exists, then we return the same predicate. If not,
-        then tries to change the predicate to find a similar state (Maximum change: 1 value).
-        If we don't find a similar state, then we return None
-
-        :param input_predicate: Existent or non-existent predicate in the representation
-        :return: Nearest predicate
-        :param verbose: Prints additional information
-        """
-        # Predicate exists in the MDP
-        cast_predicate = cast(StateRepresentation, input_predicate)
-        if self.policy_representation.has_state(cast_predicate):
-            if verbose:
-                print("NEAREST PREDICATE of existing predicate:", input_predicate)
-            return cast_predicate
-        else:
-            if verbose:
-                print("NEAREST PREDICATE of NON existing predicate:", input_predicate)
-
-            predicate_space = self.discretizer.get_predicate_space()
-            # TODO: Implement distance function
-            new_pred = random.choice(predicate_space)
-            if verbose:
-                print("\tNEAREST PREDICATE in representation:", new_pred)
-            return cast(StateRepresentation, new_pred)
-
-    def get_possible_actions(
-        self, predicate: Union[StateRepresentation, Tuple[Enum, ...]]
-    ) -> List[Tuple[Any, float]]:
-        """Given a predicate, get the possible actions and it's probabilities
-
-        3 cases:
-
-        - Predicate not in representation but similar predicate found: Return actions of the similar predicate
-        - Predicate not in representation and no similar predicate found: Return all actions same probability
-        - Predicate in MDP: Return actions of the predicate in representation
-
-        :param predicate: Existing or not existing predicate
-        :return: Action probabilities of a given state
-        """
-        result = defaultdict(float)
-        cast_predicate = cast(StateRepresentation, predicate)
-
-        # Predicate not in representation
-        if not self.policy_representation.has_state(cast_predicate):
-            # Nearest predicate not found -> Random action
-            if cast_predicate is None:
-                result = {
-                    action: 1 / len(self.discretizer.all_actions())
-                    for action in self.discretizer.all_actions()
-                }
-                return sorted(result.items(), key=lambda x: x[1], reverse=True)
-
-            cast_predicate = self.get_nearest_predicate(cast_predicate)
-            if cast_predicate is None:
-                result = {
-                    a: 1 / len(self.discretizer.all_actions())
-                    for a in self.discretizer.all_actions()
-                }
-                return list(result.items())
-
-        # Out edges with actions
-        transitions = self.policy_representation.get_outgoing_transitions(
-            cast_predicate, include_data=True
-        )
-        possible_actions = []
-
-        for transition in transitions:
-            if len(transition) >= 3:  # Check if we have data
-                _, _, data = transition
-                if (
-                    isinstance(data, dict)
-                    and "action" in data
-                    and "probability" in data
-                ):
-                    action = data["action"]
-                    probability = data["probability"]
-                    possible_actions.append((cast_predicate, action, None, probability))
-
-        # Drop duplicated edges
-        possible_actions = list(set(possible_actions))
-        # Predicate has at least 1 out edge.
-        if len(possible_actions) > 0:
-            for _, action, _, weight in possible_actions:
-                all_actions = self.discretizer.all_actions()
-                if isinstance(action, int) and 0 <= action < len(all_actions):
-                    result[all_actions[action]] += weight
-            return sorted(result.items(), key=lambda x: x[1], reverse=True)
-        # Predicate does not have out edges. Then return all the actions with same probability
-        else:
-            result = {
-                a: 1 / len(self.discretizer.all_actions())
-                for a in self.discretizer.all_actions()
-            }
-            return list(result.items())
-
     def question1(
         self,
-        predicate: Union[StateRepresentation, Tuple[Enum, ...]],
+        state: State,
         verbose: bool = False,
-    ) -> List[Tuple[Any, float]]:
+    ) -> list[tuple[Any, float]]:
         """
         Answers the question: What actions would you take in state X?
-
-        :param predicate: The state to query
+        :param state: The state to query
         :param verbose: Whether to print verbose output
         :return: List of (action, probability) tuples
         """
-        possible_actions = self.get_possible_actions(predicate)
+        nearest_state = self.get_nearest_state(state, verbose=verbose)
+        if nearest_state is None:
+            return []
+
+        possible_transitions = self.policy_representation.transitions[nearest_state]
+
         if verbose:
             print("I will take one of these actions:")
-            for action, prob in possible_actions:
-                if hasattr(action, "name"):
-                    print("\t->", action.name, "\tProb:", round(prob * 100, 2), "%")
+            for transition in possible_transitions:
+                if hasattr(transition.action, "name"):
+                    print(
+                        "\t->",
+                        transition.action.name,
+                        "\tProb:",
+                        round(transition.probability * 100, 2),
+                        "%",
+                    )
                 else:
-                    print("\t->", action, "\tProb:", round(prob * 100, 2), "%")
-        return possible_actions
+                    print(
+                        "\t->",
+                        transition.action,
+                        "\tProb:",
+                        round(transition.probability * 100, 2),
+                        "%",
+                    )
+        return [
+            (t.action, t.probability)
+            for t in sorted(
+                possible_transitions, key=lambda item: item.probability, reverse=True
+            )
+        ]
 
     def get_when_perform_action(
         self, action: Action
-    ) -> Tuple[List[StateRepresentation], List[StateRepresentation]]:
+    ) -> Tuple[List[State], List[State]]:
         """When do you perform action
-
         :param action: Valid action
         :return: A tuple of (all_states_with_action, states_where_action_is_best)
         """
         # Nodes where 'action' it's a possible action
         # All the nodes that has the same action (It has repeated nodes)
-        all_transitions = self.policy_representation.get_all_transitions(
-            include_data=True
-        )
+        all_transitions = list(self.policy_representation.transitions)
         all_nodes = []
 
-        for transition in all_transitions:
-            if len(transition) >= 3:  # Check if we have data
-                u, _, data = transition
-                if (
-                    isinstance(data, dict)
-                    and "action" in data
-                    and data["action"] == action
-                ):
-                    all_nodes.append(u)
+        for transition_data in all_transitions:
+            if transition_data.action == action:
+                all_nodes.append(transition_data.from_state)
 
         # Drop all the repeated nodes
         all_nodes = list(set(all_nodes))
@@ -358,23 +406,20 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         # Nodes where 'action' it's the most probable action
         all_edges = []
         for u in all_nodes:
-            out_edges = self.policy_representation.get_outgoing_transitions(
-                u, include_data=True
-            )
+            out_edges = list(self.policy_representation.transitions[u])
             all_edges.append(out_edges)
 
         all_best_actions = []
         for edges in all_edges:
             best_actions = []
-            for edge in edges:
-                if len(edge) >= 3:  # Check if we have data
-                    u, _, data = edge
-                    if (
-                        isinstance(data, dict)
-                        and "action" in data
-                        and "probability" in data
-                    ):
-                        best_actions.append((u, data["action"], data["probability"]))
+            for transition_data in edges:
+                best_actions.append(
+                    (
+                        transition_data.from_state,
+                        transition_data.action,
+                        transition_data.probability,
+                    )
+                )
 
             if best_actions:
                 best_actions.sort(key=lambda x: x[2], reverse=True)
@@ -386,12 +431,9 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         best_nodes.sort()
         return all_nodes, best_nodes
 
-    def question2(
-        self, action: Action, verbose: bool = False
-    ) -> List[StateRepresentation]:
+    def question2(self, action: Action, verbose: bool = False) -> List[State]:
         """
         Answers the question: When do you perform action X?
-
         :param action: The action to query
         :param verbose: Whether to print verbose output
         :return: List of states where the action is the most probable
@@ -412,12 +454,11 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
     def substract_predicates(
         self,
-        origin: Union[str, List[str], StateRepresentation, Tuple[Enum, ...]],
-        destination: Union[str, List[str], StateRepresentation, Tuple[Enum, ...]],
+        origin: Union[str, List[str], State, Tuple[Enum, ...]],
+        destination: Union[str, List[str], State, Tuple[Enum, ...]],
     ) -> Dict[str, Tuple[str, str]]:
         """
         Subtracts 2 predicates, getting only the values that are different
-
         :param origin: Origin predicate
         :param destination: Destination predicate
         :return: Dict with the different values
@@ -453,88 +494,75 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
                 result[value1] = (value1, value2)
         return result
 
-    def nearby_predicates(
+    def nearby_states(
         self,
-        state: Union[StateRepresentation, Tuple[Enum, ...]],
+        state: State,
         greedy: bool = False,
         verbose: bool = False,
-    ) -> List[Tuple[Action, StateRepresentation, Dict[str, Tuple[str, str]]]]:
+    ) -> List[Tuple[Action, State, Dict[str, Tuple[str, str]]]]:
         """
         Gets nearby states from state
-
         :param state: State to analyze
         :param greedy: Whether to use greedy action selection
         :param verbose: Whether to print verbose output
         :return: List of [Action, destination_state, difference]
         """
-        cast_state = cast(StateRepresentation, state)
-        out_edges = self.policy_representation.get_outgoing_transitions(
-            cast_state, include_data=True
-        )
-        outs = []
-
-        for edge in out_edges:
-            if len(edge) >= 3:  # Check if we have data
-                u, v, d = edge
-                if isinstance(d, dict) and "action" in d and "probability" in d:
-                    outs.append((u, v, d["action"], d["probability"]))
+        transition_data_list = list(self.policy_representation.transitions[state])
 
         result = []
-        for u, v, a, w in outs:
+        for transition_data in transition_data_list:
             most_probable = self.get_most_probable_option(
-                v, greedy=greedy, verbose=verbose
+                transition_data.to_state, greedy=greedy, verbose=verbose
             )
             if most_probable:
-                result.append((most_probable, v, self.substract_predicates(u, v)))
+                result.append(
+                    (
+                        most_probable,
+                        transition_data.to_state,
+                        self.substract_predicates(state, transition_data.to_state),
+                    )
+                )
 
         result = sorted(result, key=lambda x: x[1])
         return result
 
     def get_most_probable_option(
         self,
-        predicate: Union[StateRepresentation, Tuple[Enum, ...]],
+        state: State,
         greedy: bool = False,
         verbose: bool = False,
     ) -> Optional[Action]:
         """
         Get most probable action for a predicate
-
         :param predicate: The state to query
         :param greedy: Whether to use greedy action selection
         :param verbose: Whether to print verbose output
         :return: The most probable action or None
         """
-        cast_predicate = cast(StateRepresentation, predicate)
         if greedy:
-            nearest_predicate = self.get_nearest_predicate(
-                cast_predicate, verbose=verbose
-            )
-            possible_actions = self.get_possible_actions(nearest_predicate)
+            nearest_state = self.get_nearest_state(state, verbose=verbose)
+            possible_transitions = self.policy_representation.transitions[nearest_state]
 
             # Possible actions always will have 1 element since for each state we only save the best action
-            if possible_actions:
-                return possible_actions[0][0]
+            if possible_transitions:
+                return possible_transitions[0].action
             return None
         else:
-            nearest_predicate = self.get_nearest_predicate(
-                cast_predicate, verbose=verbose
-            )
-            possible_actions = self.get_possible_actions(nearest_predicate)
-            if possible_actions:
-                possible_actions = sorted(possible_actions, key=lambda x: x[1])
-                return possible_actions[-1][0]
+            nearest_state = self.get_nearest_state(state, verbose=verbose)
+            possible_transitions = self.policy_representation.transitions[nearest_state]
+            if possible_transitions:
+                return next(iter(possible_transitions)).action
             return None
 
     def question3(
         self,
-        predicate: Union[StateRepresentation, Tuple[Enum, ...]],
+        state: State,
         action: Action,
         greedy: bool = False,
         verbose: bool = False,
     ) -> List[Dict[str, Tuple[str, str]]]:
         """
         Answers the question: Why do you perform action X in state Y?
-
         :param predicate: The state to query
         :param action: The action to query
         :param greedy: Whether to use greedy action selection
@@ -559,20 +587,21 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
 
         # Determine best action based on mode
         if mode == PGBasedPolicyMode.GREEDY:
-            possible_actions = self.get_possible_actions(predicate)
-            if possible_actions:
-                best_action = possible_actions[0][0]
+            possible_transitions = self.policy_representation.transitions[state]
+            if possible_transitions:
+                best_action = possible_transitions[0].action
             else:
                 best_action = None
         else:
-            possible_actions = self.get_possible_actions(predicate)
-            if possible_actions:
-                actions, probs = zip(*possible_actions)
+            possible_transitions = self.policy_representation.transitions[state]
+            if possible_transitions:
+                actions = [t.action for t in possible_transitions]
+                probs = [t.probability for t in possible_transitions]
                 best_action = np.random.choice(actions, p=probs)
             else:
                 best_action = None
 
-        result = self.nearby_predicates(predicate)
+        result = self.nearby_states(state)
         explanations = []
 
         if verbose:
@@ -591,27 +620,3 @@ class PolicyApproximatorFromBasicObservation(OnlinePolicyApproximator):
         if len(explanations) == 0 and verbose:
             print("\tI don't know where I would have ended up")
         return explanations
-
-    def save(self, format: str, path: Union[str, List[str]]):
-        """
-        Save the policy approximator
-
-        :param format: The format to save in (e.g., 'json', 'pickle')
-        :param path: The path to save to
-        """
-        if not self._is_fit:
-            raise Exception("Policy approximator cannot be saved before fitting!")
-
-        # Implement appropriate save functionality based on the format
-        if format == "json":
-            # Implement JSON serialization
-            pass
-        elif format == "pickle":
-            # Implement pickle serialization
-            pass
-        else:
-            raise NotImplementedError(f"Format {format} not supported for saving")
-
-
-class InterventionalPGConstruction(PolicyApproximator):
-    def fit(self): ...
