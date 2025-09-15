@@ -130,7 +130,7 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
 
     def test_initialization(self):
         """Test that the graph is initialized correctly."""
-        self.assertEqual(self.ipg.c_threshold, 0.5)
+        self.assertEqual(self.ipg.commitment_threshold, 0.5)
         self.assertFalse(self.ipg.verbose)
         self.assertIsInstance(self.ipg.policy_representation, GraphRepresentation)
         self.assertTrue(len(list(self.ipg.policy_representation.states)) > 0)
@@ -320,7 +320,7 @@ class TestIntentionPropagation(unittest.TestCase):
         attrib_probs, expected = self.ipg.compute_intention_metrics(
             commitment_threshold=0.5
         )
-        # At c_threshold=0.5, both s1 (1.0) and s0 (0.7) still qualify;
+        # At commitment_threshold=0.5, both s1 (1.0) and s0 (0.7) still qualify;
         # attributed probability is P(s1)+P(s0)=0.3+0.2=0.5 and
         # expected intention is (1*0.3 + 0.7*0.2)/0.5 = 0.88. "Any" matches here.
         self.assertIn("reach_one", attrib_probs)

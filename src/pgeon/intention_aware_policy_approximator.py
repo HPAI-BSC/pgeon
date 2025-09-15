@@ -87,7 +87,7 @@ class IntentionAwarePolicyApproximator(
         )
         self.registered_desires: List[Desire] = list()
         self.verbose = verbose
-        self.c_threshold = 0.5
+        self.commitment_threshold = 0.5
 
     def prob(self, query: ProbQuery) -> float:
         s, a, s_prima, given_s, given_a, given_do_a = (
@@ -514,7 +514,9 @@ class IntentionAwarePolicyApproximator(
         # is trying to further an intention. eg: if it has 5% prob of increasing a desire but 95% of decreasing it
         current_intentions = self.get_intentions(state)
         current_attr_ints = {
-            d: I_d for d, I_d in current_intentions.items() if I_d >= self.c_threshold
+            d: I_d
+            for d, I_d in current_intentions.items()
+            if I_d >= self.commitment_threshold
         }
         if len(current_attr_ints) == 0:
             return {}
