@@ -205,6 +205,60 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
         )
         self.assertEqual(len(why_trace), 1)
 
+    def test_compute_desire_and_commitment_stats(self):
+        # Register multiple desires
+        for d in self.desires:
+            self.ipg.register_desire(d)
+        # Ensure some stats can be computed without error
+        for d in self.desires:
+            action_probs, nodes = self.ipg.compute_desire_statistics(d)
+            self.assertIsInstance(action_probs, list)
+            self.assertIsInstance(nodes, list)
+            self.assertEqual(len(action_probs), len(nodes))
+            # Probabilities are in [0,1]
+            for p in action_probs:
+                self.assertGreaterEqual(p, 0)
+                self.assertLessEqual(p, 1)
+
+            intentions, nodes_with_intent = self.ipg.compute_commitment_stats(
+                d.name, commitment_threshold=0.0
+            )
+            self.assertEqual(len(intentions), len(nodes_with_intent))
+            for i in intentions:
+                self.assertGreaterEqual(i, 0)
+
+    def test_compute_intention_metrics(self):
+        for d in self.desires:
+            self.ipg.register_desire(d)
+        attrib_probs, expected = self.ipg.compute_intention_metrics(c_threshold=0.0)
+        # Contains entries for each desire and 'Any'
+        for d in self.desires:
+            self.assertIn(d.name, attrib_probs)
+            self.assertIn(d.name, expected)
+            self.assertGreaterEqual(attrib_probs[d.name], 0)
+            self.assertGreaterEqual(expected[d.name], 0)
+        self.assertIn("Any", attrib_probs)
+        self.assertIn("Any", expected)
+        self.assertGreaterEqual(attrib_probs["Any"], 0)
+        self.assertGreaterEqual(expected["Any"], 0)
+
+    def test_answer_how_stochastic(self):
+        for d in self.desires:
+            self.ipg.register_desire(d)
+        res = self.ipg.answer_how_stochastic(
+            self.state0, self.desires, min_branch_probability=0.0
+        )
+        # Should provide an entry per desire
+        self.assertEqual(set(res.keys()), set(self.desires))
+        for d, branches in res.items():
+            # Should be a list of tuples (a, s', I, prob)
+            self.assertIsInstance(branches, list)
+            for item in branches:
+                self.assertEqual(len(item), 4)
+                a, s_prime, i, p = item
+                self.assertIsInstance(p, float)
+                self.assertGreaterEqual(p, 0)
+
 
 if __name__ == "__main__":
     unittest.main()
