@@ -9,7 +9,7 @@ from test.domain.test_env import (
 from typing import List
 
 from pgeon.desire import Desire, IntentionalStateMetadata
-from pgeon.discretizer import Action, Predicate, PredicateBasedState
+from pgeon.discretizer import Action, Predicate, PredicateBasedState, Transition
 from pgeon.intention_aware_policy_approximator import (
     IntentionAwarePolicyApproximator,
     ProbQuery,
@@ -258,6 +258,85 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
                 a, s_prime, i, p = item
                 self.assertIsInstance(p, float)
                 self.assertGreaterEqual(p, 0)
+
+
+class TestIntentionPropagation(unittest.TestCase):
+    def setUp(self):
+        self.env = TestingEnv()
+        self.discretizer = TestingDiscretizer()
+        self.agent = TestingAgent()
+        # States
+        self.s0 = PredicateBasedState((Predicate(DummyState.ZERO),))
+        self.s1 = PredicateBasedState((Predicate(DummyState.ONE),))
+        self.s2 = PredicateBasedState((Predicate(DummyState.TWO),))
+
+        # Graph representation with explicit probabilities
+        self.rep = GraphRepresentation(state_metadata_class=IntentionalStateMetadata)
+        self.rep.states[self.s0] = IntentionalStateMetadata(probability=0.2)
+        self.rep.states[self.s1] = IntentionalStateMetadata(probability=0.3)
+        self.rep.states[self.s2] = IntentionalStateMetadata(probability=0.5)
+        # Transitions (action 0)
+        self.rep.transitions[self.s0][self.s1] = Transition(action=0, probability=0.7)
+        self.rep.transitions[self.s0][self.s2] = Transition(action=0, probability=0.3)
+        # Self-loop at s1 (fulfilling action)
+        self.rep.transitions[self.s1][self.s1] = Transition(action=0, probability=1.0)
+
+        self.ipg = IntentionAwarePolicyApproximator(
+            self.discretizer,
+            self.rep,
+            self.env,
+            self.agent,
+        )
+        self.desire = Desire(
+            "reach_one", 0, PredicateBasedState([Predicate(DummyState.ONE)])
+        )
+        self.ipg.register_desire(self.desire, stop_criterion=1e-6)
+
+    def test_propagation_values(self):
+        # Intention seeded at s1 with P(a|s1)=1 due to self-loop; propagation to s0
+        # multiplies by P(s1|s0)=0.7. s2 is not on any path to fulfillment.
+        self.assertAlmostEqual(self.ipg.get_intention(self.s1, self.desire), 1.0)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s0, self.desire), 0.7)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s2, self.desire), 0.0)
+
+    def test_desire_statistics(self):
+        # Only s1 satisfies the desire clause and its fulfilling action has prob 1.0
+        action_probs, nodes = self.ipg.compute_desire_statistics(self.desire)
+        self.assertEqual(nodes, [self.s1])
+        self.assertEqual(action_probs, [1.0])
+
+    def test_commitment_and_intention_metrics(self):
+        # With threshold 0, both s1 (1.0) and s0 (0.7) are counted as committed.
+        intentions, nodes_with_intent = self.ipg.compute_commitment_stats(
+            self.desire.name, commitment_threshold=0.0
+        )
+        mapping = {n: i for n, i in zip(nodes_with_intent, intentions)}
+        self.assertAlmostEqual(mapping.get(self.s1, 0.0), 1.0)
+        self.assertAlmostEqual(mapping.get(self.s0, 0.0), 0.7)
+
+        attrib_probs, expected = self.ipg.compute_intention_metrics(c_threshold=0.5)
+        # At c_threshold=0.5, both s1 (1.0) and s0 (0.7) still qualify;
+        # attributed probability is P(s1)+P(s0)=0.3+0.2=0.5 and
+        # expected intention is (1*0.3 + 0.7*0.2)/0.5 = 0.88. "Any" matches here.
+        self.assertIn("reach_one", attrib_probs)
+        self.assertIn("reach_one", expected)
+        self.assertAlmostEqual(attrib_probs["reach_one"], 0.5)
+        self.assertAlmostEqual(expected["reach_one"], 0.88)
+        self.assertAlmostEqual(attrib_probs["Any"], 0.5)
+        self.assertAlmostEqual(expected["Any"], 0.88)
+
+    def test_how_stochastic_branches(self):
+        # From s0 there are two branches for action 0: to s1 with 0.7 and to s2 with 0.3.
+        # We expect those exact branch probabilities in descending order.
+        how_stoch = self.ipg.answer_how_stochastic(
+            self.s0, [self.desire], min_branch_probability=0.0
+        )
+        branches = how_stoch[self.desire]
+        probs = sorted(
+            [round(p, 6) for _, sp, _, p in branches if sp in (self.s1, self.s2)],
+            reverse=True,
+        )
+        self.assertEqual(probs, [0.7, 0.3])
 
 
 if __name__ == "__main__":

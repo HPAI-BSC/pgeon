@@ -144,10 +144,14 @@ class IntentionAwarePolicyApproximator(
 
     def get_possible_actions(self, s: State) -> List[Action]:
         # Returns any a s.t. P(a|s)>0
-        return [
-            transition_data.action
+        actions_with_probs = [
+            (transition_data.action, transition_data.probability)
             for transition_data in self.policy_representation.transitions[s]
         ]
+        # Deduplicate and filter zero-probability
+        return list(
+            set([action for action, prob in actions_with_probs if prob and prob > 0])
+        )
 
     def get_possible_s_prima(self, s: State, a: Action = None) -> List[State]:
         # Returns any a s.t. P(a|s)>0
