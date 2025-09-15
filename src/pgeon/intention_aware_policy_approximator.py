@@ -359,47 +359,54 @@ class IntentionAwarePolicyApproximator(
 
     def compute_intention_metrics(self, commitment_threshold: float):
         # Returns (attributed_intention_probabilities, expected_intentions)
+        def weighted_average(values: List[float], weights: List[float]) -> float:
+            total_weight = sum(weights)
+            return (
+                (sum(v * w for v, w in zip(values, weights)) / total_weight)
+                if total_weight > 0
+                else 0.0
+            )
+
         attributed_intention_probabilities: Dict[str, float] = {}
         expected_intentions: Dict[str, float] = {}
-        nodes_with_any_intention: Set[State] = set()
 
+        nodes_with_any_intention: Set[State] = set()
+        prob_cache: Dict[State, float] = {}
+
+        # Per-desire metrics
         for desire in self.registered_desires:
             intention_vals, nodes = self.compute_commitment_stats(
                 desire, commitment_threshold=commitment_threshold
             )
-            int_states = [self.prob(ProbQuery(s=n)) for n in nodes]
+            # Cache and collect probabilities of these nodes
+            probs = []
             for n in nodes:
+                if n not in prob_cache:
+                    prob_cache[n] = self.prob(ProbQuery(s=n))
+                probs.append(prob_cache[n])
                 nodes_with_any_intention.add(n)
-            attributed_prob = sum(int_states)
-            if attributed_prob > 0:
-                expected = (
-                    sum(iv * p for iv, p in zip(intention_vals, int_states))
-                    / attributed_prob
-                )
-            else:
-                expected = 0.0
+
+            attributed_prob = sum(probs)
+            expected = weighted_average(intention_vals, probs)
+
             attributed_intention_probabilities[desire.name] = attributed_prob
             expected_intentions[desire.name] = expected
 
-        int_states_any = [self.prob(ProbQuery(s=n)) for n in nodes_with_any_intention]
-        int_total_probability = sum(int_states_any)
-        if int_total_probability > 0:
-            intention_max_vals = [
-                (
-                    max(list(self.get_intentions(n).values()))
-                    if len(self.get_intentions(n)) > 0
-                    else 0.0
-                )
-                for n in nodes_with_any_intention
-            ]
-            expected_any = (
-                sum(m * p for m, p in zip(intention_max_vals, int_states_any))
-                / int_total_probability
+        # "Any" bucket across all nodes that carry any intention
+        any_probs = [
+            prob_cache.get(n) or self.prob(ProbQuery(s=n))
+            for n in nodes_with_any_intention
+        ]
+        any_int_vals = [
+            (
+                max(self.get_intentions(n).values())
+                if len(self.get_intentions(n)) > 0
+                else 0.0
             )
-        else:
-            expected_any = 0.0
-        attributed_intention_probabilities["Any"] = int_total_probability
-        expected_intentions["Any"] = expected_any
+            for n in nodes_with_any_intention
+        ]
+        attributed_intention_probabilities["Any"] = sum(any_probs)
+        expected_intentions["Any"] = weighted_average(any_int_vals, any_probs)
 
         return attributed_intention_probabilities, expected_intentions
 
