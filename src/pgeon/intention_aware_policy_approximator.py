@@ -346,29 +346,18 @@ class IntentionAwarePolicyApproximator(
                 nodes_fulfilled.append(s)
         return action_prob_distribution, nodes_fulfilled
 
-    def compute_commitment_stats(self, desire_name: str, commitment_threshold: float):
+    def compute_commitment_stats(self, desire: Desire, commitment_threshold: float):
         intention_score: List[float] = []
         nodes_with_intent: List[State] = []
         for s in self.get_all_state_ids():
             node_ints = self.get_intentions(s)
-            if isinstance(desire_name, str):
-                # intentions are stored with Desire keys; resolve by name
-                intention = 0
-                for d_obj, val in node_ints.items():
-                    try:
-                        if getattr(d_obj, "name", None) == desire_name:
-                            intention = val
-                            break
-                    except Exception:
-                        continue
-            else:
-                intention = node_ints.get(desire_name, 0)
+            intention = node_ints.get(desire, 0)
             if intention >= commitment_threshold:
                 intention_score.append(intention)
                 nodes_with_intent.append(s)
         return intention_score, nodes_with_intent
 
-    def compute_intention_metrics(self, c_threshold: float):
+    def compute_intention_metrics(self, commitment_threshold: float):
         # Returns (attributed_intention_probabilities, expected_intentions)
         attributed_intention_probabilities: Dict[str, float] = {}
         expected_intentions: Dict[str, float] = {}
@@ -376,7 +365,7 @@ class IntentionAwarePolicyApproximator(
 
         for desire in self.registered_desires:
             intention_vals, nodes = self.compute_commitment_stats(
-                desire.name, commitment_threshold=c_threshold
+                desire, commitment_threshold=commitment_threshold
             )
             int_states = [self.prob(ProbQuery(s=n)) for n in nodes]
             for n in nodes:

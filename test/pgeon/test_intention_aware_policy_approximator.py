@@ -230,7 +230,9 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
     def test_compute_intention_metrics(self):
         for d in self.desires:
             self.ipg.register_desire(d)
-        attrib_probs, expected = self.ipg.compute_intention_metrics(c_threshold=0.0)
+        attrib_probs, expected = self.ipg.compute_intention_metrics(
+            commitment_threshold=0.0
+        )
         # Contains entries for each desire and 'Any'
         for d in self.desires:
             self.assertIn(d.name, attrib_probs)
@@ -305,16 +307,19 @@ class TestIntentionPropagation(unittest.TestCase):
         self.assertEqual(nodes, [self.s1])
         self.assertEqual(action_probs, [1.0])
 
-    def test_commitment_and_intention_metrics(self):
+    def test_commitment_metrics(self):
         # With threshold 0, both s1 (1.0) and s0 (0.7) are counted as committed.
         intentions, nodes_with_intent = self.ipg.compute_commitment_stats(
-            self.desire.name, commitment_threshold=0.0
+            self.desire, commitment_threshold=0.0
         )
         mapping = {n: i for n, i in zip(nodes_with_intent, intentions)}
         self.assertAlmostEqual(mapping.get(self.s1, 0.0), 1.0)
         self.assertAlmostEqual(mapping.get(self.s0, 0.0), 0.7)
 
-        attrib_probs, expected = self.ipg.compute_intention_metrics(c_threshold=0.5)
+    def test_intention_metrics(self):
+        attrib_probs, expected = self.ipg.compute_intention_metrics(
+            commitment_threshold=0.5
+        )
         # At c_threshold=0.5, both s1 (1.0) and s0 (0.7) still qualify;
         # attributed probability is P(s1)+P(s0)=0.3+0.2=0.5 and
         # expected intention is (1*0.3 + 0.7*0.2)/0.5 = 0.88. "Any" matches here.
