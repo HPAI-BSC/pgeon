@@ -262,7 +262,7 @@ class TestIntentionAwarePolicyApproximator(unittest.TestCase):
                 self.assertGreaterEqual(p, 0)
 
 
-class TestIntentionPropagation(unittest.TestCase):
+class TestIntentionMetrics(unittest.TestCase):
     def setUp(self):
         self.env = TestingEnv()
         self.discretizer = TestingDiscretizer()
@@ -274,9 +274,9 @@ class TestIntentionPropagation(unittest.TestCase):
 
         # Graph representation with explicit probabilities
         self.rep = GraphRepresentation(state_metadata_class=IntentionalStateMetadata)
-        self.rep.states[self.s0] = IntentionalStateMetadata(probability=0.2)
-        self.rep.states[self.s1] = IntentionalStateMetadata(probability=0.3)
-        self.rep.states[self.s2] = IntentionalStateMetadata(probability=0.5)
+        self.rep.states[self.s0] = IntentionalStateMetadata()
+        self.rep.states[self.s1] = IntentionalStateMetadata()
+        self.rep.states[self.s2] = IntentionalStateMetadata()
         # Transitions (action 0)
         self.rep.transitions[self.s0][self.s1] = Transition(action=0, probability=0.7)
         self.rep.transitions[self.s0][self.s2] = Transition(action=0, probability=0.3)
@@ -342,6 +342,132 @@ class TestIntentionPropagation(unittest.TestCase):
             reverse=True,
         )
         self.assertEqual(probs, [0.7, 0.3])
+
+
+class TestIntentionPropagation(unittest.TestCase):
+    def setUp(self):
+        self.env = TestingEnv()
+        self.discretizer = TestingDiscretizer()
+        self.agent = TestingAgent()
+        # States
+        self.s0 = PredicateBasedState((Predicate(DummyState.ZERO),))
+        self.s1 = PredicateBasedState((Predicate(DummyState.ONE),))
+        self.s2 = PredicateBasedState((Predicate(DummyState.TWO),))
+        self.s3 = PredicateBasedState((Predicate(DummyState.THREE),))
+        self.s4 = PredicateBasedState((Predicate(DummyState.FOUR),))
+        self.s5 = PredicateBasedState((Predicate(DummyState.FIVE),))
+        self.s6 = PredicateBasedState((Predicate(DummyState.SIX),))
+        self.s7 = PredicateBasedState((Predicate(DummyState.SEVEN),))
+        self.s8 = PredicateBasedState((Predicate(DummyState.EIGHT),))
+
+    def test_line(self):
+        # Test graph with a line of three states
+        # s0 -> s1 -> s2 -*> s3
+        self.rep = GraphRepresentation(state_metadata_class=IntentionalStateMetadata)
+        self.rep.states[self.s0] = IntentionalStateMetadata()
+        self.rep.states[self.s1] = IntentionalStateMetadata()
+        self.rep.states[self.s2] = IntentionalStateMetadata()
+        self.rep.states[self.s3] = IntentionalStateMetadata()
+        # Transitions (action 0)
+        self.rep.transitions[self.s0][self.s1] = Transition(action=0, probability=0.5)
+        self.rep.transitions[self.s1][self.s2] = Transition(action=0, probability=0.5)
+        self.rep.transitions[self.s2][self.s3] = Transition(action=0, probability=1.0)
+
+        self.ipg = IntentionAwarePolicyApproximator(
+            self.discretizer,
+            self.rep,
+            self.env,
+            self.agent,
+        )
+        self.desire = Desire(
+            "pass_two", 0, PredicateBasedState([Predicate(DummyState.TWO)])
+        )
+        self.ipg.register_desire(self.desire, stop_criterion=1e-6)
+
+        self.assertAlmostEqual(self.ipg.get_intention(self.s0, self.desire), 0.25)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s1, self.desire), 0.5)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s2, self.desire), 1.0)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s3, self.desire), 0.0)
+
+    def test_split(self):
+        # Test graph with a split at s1
+        # s0 -> s1 ->  s2 -> s3 - > s4 -*> s7
+        #          \-> s5 -> s6 -*> s7
+        self.rep = GraphRepresentation(state_metadata_class=IntentionalStateMetadata)
+        self.rep.states[self.s0] = IntentionalStateMetadata()
+        self.rep.states[self.s1] = IntentionalStateMetadata()
+        self.rep.states[self.s2] = IntentionalStateMetadata()
+        self.rep.states[self.s3] = IntentionalStateMetadata()
+        self.rep.states[self.s4] = IntentionalStateMetadata()
+        self.rep.states[self.s5] = IntentionalStateMetadata()
+        self.rep.states[self.s6] = IntentionalStateMetadata()
+        # Transitions (action 0)
+        self.rep.transitions[self.s0][self.s1] = Transition(action=0, probability=0.5)
+        self.rep.transitions[self.s1][self.s2] = Transition(action=0, probability=0.5)
+        self.rep.transitions[self.s2][self.s3] = Transition(action=0, probability=0.5)
+        self.rep.transitions[self.s3][self.s4] = Transition(action=0, probability=0.5)
+        self.rep.transitions[self.s4][self.s7] = Transition(action=0, probability=1)
+        self.rep.transitions[self.s1][self.s5] = Transition(action=0, probability=0.5)
+        self.rep.transitions[self.s5][self.s6] = Transition(action=0, probability=0.5)
+        self.rep.transitions[self.s6][self.s7] = Transition(action=0, probability=1.0)
+        self.rep.transitions[self.s7][self.s8] = Transition(action=0, probability=1.0)
+
+        self.ipg = IntentionAwarePolicyApproximator(
+            self.discretizer,
+            self.rep,
+            self.env,
+            self.agent,
+        )
+
+        self.desire = Desire(
+            "pass_seven", 0, PredicateBasedState([Predicate(DummyState.SEVEN)])
+        )
+        self.ipg.register_desire(self.desire, stop_criterion=1e-6)
+
+        self.assertAlmostEqual(
+            self.ipg.get_intention(self.s0, self.desire), (0.25 + 0.125) / 2
+        )
+        self.assertAlmostEqual(
+            self.ipg.get_intention(self.s1, self.desire), 0.25 + 0.125
+        )
+        self.assertAlmostEqual(self.ipg.get_intention(self.s2, self.desire), 0.25)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s3, self.desire), 0.5)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s4, self.desire), 1.0)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s5, self.desire), 0.5)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s6, self.desire), 1.0)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s7, self.desire), 1.0)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s8, self.desire), 0.0)
+
+    def test_two_node_cycle(self):
+        # Test graph with a two-node cycle
+        # s0 <-> s1
+        #    \-*> s2
+        self.rep = GraphRepresentation(state_metadata_class=IntentionalStateMetadata)
+        self.rep.states[self.s0] = IntentionalStateMetadata()
+        self.rep.states[self.s1] = IntentionalStateMetadata()
+        self.rep.states[self.s2] = IntentionalStateMetadata()
+        self.rep.states[self.s3] = IntentionalStateMetadata()
+        # Transitions (action 0)
+        self.rep.transitions[self.s0][self.s1] = Transition(action=0, probability=0.5)
+        self.rep.transitions[self.s1][self.s0] = Transition(action=0, probability=0.5)
+        self.rep.transitions[self.s0][self.s2] = Transition(action=0, probability=0.5)
+        self.rep.transitions[self.s2][self.s3] = Transition(action=0, probability=1.0)
+
+        self.ipg = IntentionAwarePolicyApproximator(
+            self.discretizer,
+            self.rep,
+            self.env,
+            self.agent,
+        )
+        self.desire = Desire(
+            "pass_two", 0, PredicateBasedState([Predicate(DummyState.TWO)])
+        )
+        self.ipg.register_desire(self.desire, stop_criterion=1e-9)
+
+        self.assertAlmostEqual(self.ipg.get_intention(self.s0, self.desire), 2 / 3)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s1, self.desire), 1 / 3)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s2, self.desire), 1)
+        self.assertAlmostEqual(self.ipg.get_intention(self.s3, self.desire), 0.0)
 
 
 if __name__ == "__main__":
