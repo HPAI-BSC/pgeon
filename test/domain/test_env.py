@@ -52,7 +52,7 @@ class TestingEnv(gymnasium.Env):
 
 
 class TestingDiscretizer(Discretizer):
-    def discretize(self, state: np.ndarray) -> Tuple[Predicate]:
+    def discretize(self, state: np.ndarray) -> PredicateBasedState:
         correct_predicate = [
             DummyState.ZERO,
             DummyState.ONE,
@@ -79,7 +79,7 @@ class TestingDiscretizer(Discretizer):
         return (DummyState,)
 
     def state_to_str(self, state: PredicateBasedState):
-        return list(state.predicates)[0].value.name
+        return list(state.predicates)[0].name.name
 
     def str_to_state(self, state_str: str) -> PredicateBasedState:
         return PredicateBasedState((Predicate(DummyState[state_str]),))

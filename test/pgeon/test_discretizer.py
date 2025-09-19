@@ -1,5 +1,5 @@
 import unittest
-from enum import Enum
+from enum import Enum, auto
 
 from pydantic import ValidationError
 
@@ -11,63 +11,94 @@ from pgeon.discretizer import (
 )
 
 
+class PredicateName(Enum):
+    IS_DAYTIME = auto()
+    HAS_COLOR = auto()
+    HAS_SHAPE = auto()
+    IMPLIES = auto()
+
+
+P = PredicateName
+
+
+class Object(Enum):
+    BALL = auto()
+    PYRAMID = auto()
+
+
 # Define some enums for testing
 class Color(Enum):
-    RED = 1
-    GREEN = 2
-    BLUE = 3
+    RED = auto()
+    GREEN = auto()
 
 
 class Shape(Enum):
-    SQUARE = 1
-    CIRCLE = 2
-    TRIANGLE = 3
+    ANY_SHAPE = auto()
+    SQUARE = auto()
+    CIRCLE = auto()
 
 
 class TestPredicate(unittest.TestCase):
-    def test_init(self):
-        p = Predicate(Color.RED)
-        self.assertEqual(p.predicate_type, Color)
-        self.assertEqual(p.value, Color.RED)
+    def test_init_without_arguments(self):
+        p = Predicate(P.IS_DAYTIME)
+        self.assertEqual(p.name, P.IS_DAYTIME)
+        self.assertEqual(p.arguments, ())
+
+    def test_init_with_arguments(self):
+        p = Predicate(
+            P.HAS_COLOR,
+            (
+                Object.BALL,
+                Color.RED,
+            ),
+        )
+        self.assertEqual(p.name, P.HAS_COLOR)
+        self.assertEqual(p.arguments, (Object.BALL, Color.RED))
 
     def test_eq(self):
-        p1 = Predicate(Color.RED)
-        p2 = Predicate(Color.RED)
-        p3 = Predicate(Color.GREEN)
-        p4 = Predicate(Shape.SQUARE)
+        p1 = Predicate(P.HAS_COLOR, (Object.BALL, Color.RED))
+        p2 = Predicate(P.HAS_COLOR, (Object.BALL, Color.RED))
+        p3 = Predicate(P.HAS_COLOR, (Object.BALL, Color.GREEN))
+        p4 = Predicate(P.IMPLIES, (Object.BALL, Color.RED))
 
         self.assertEqual(p1, p2)
         self.assertNotEqual(p1, p3)
         self.assertNotEqual(p1, p4)
         self.assertNotEqual(p1, "not a predicate")
 
-    def test_str(self):
-        p = Predicate(Color.RED)
-        self.assertEqual(str(p), "Color(RED)")
+    def test_str_without_arguments(self):
+        p = Predicate(P.IS_DAYTIME)
+        self.assertEqual(str(p), "IS_DAYTIME()")
+
+    def test_str_with_arguments(self):
+        p = Predicate(P.HAS_COLOR, (Object.BALL, Color.RED))
+        self.assertEqual(str(p), "HAS_COLOR(BALL;RED)")
 
     def test_repr(self):
-        p = Predicate(Color.RED)
-        self.assertEqual(repr(p), "Color(RED)")
+        p = Predicate(P.HAS_COLOR, (Object.BALL, Color.RED))
+        self.assertEqual(repr(p), "HAS_COLOR(BALL;RED)")
 
     def test_hash(self):
-        p1 = Predicate(Color.RED)
-        p2 = Predicate(Color.RED)
-        p3 = Predicate(Color.GREEN)
+        p1 = Predicate(P.HAS_COLOR, (Object.BALL, Color.RED))
+        p2 = Predicate(P.HAS_COLOR, (Object.BALL, Color.RED))
+        p3 = Predicate(P.HAS_COLOR, (Object.BALL, Color.GREEN))
         s = {p1}
 
         self.assertEqual(hash(p1), hash(p2))
         self.assertNotEqual(hash(p1), hash(p3))
+        self.assertIn(p1, s)
         self.assertIn(p2, s)
         self.assertNotIn(p3, s)
 
     def test_lt(self):
-        p1 = Predicate(Color.RED)
-        p2 = Predicate(Shape.SQUARE)
+        # alphabetical order
+        p1 = Predicate(P.HAS_COLOR, (Object.BALL, Color.GREEN))
+        p2 = Predicate(P.HAS_COLOR, (Object.BALL, Color.RED))
+        p3 = Predicate(Shape.SQUARE)
 
-        # The result of this comparison depends on the hash values,
-        # which can change between python sessions.
-        # So I will just check that it does not raise an error, and one is less than the other or vice-versa.
-        self.assertNotEqual(p1 < p2, p2 < p1)
+        self.assertTrue(p1 < p2)
+        self.assertTrue(p1 < p3)
+        self.assertTrue(p2 < p3)
 
         with self.assertRaises(ValueError):
             p1 < "not a predicate"
@@ -91,19 +122,23 @@ class TestTransition(unittest.TestCase):
 
 class TestPredicateBasedStateRepresentation(unittest.TestCase):
     def setUp(self):
-        self.p1 = Predicate(Color.RED)
-        self.p2 = Predicate(Shape.SQUARE)
-        self.p3 = Predicate(Shape.TRIANGLE)
+        self.ball_has_color_red = Predicate(P.HAS_COLOR, (Object.BALL, Color.RED))
+        self.ball_has_shape_square = Predicate(P.HAS_COLOR, (Object.BALL, Shape.SQUARE))
+        self.ball_has_shape_circle = Predicate(P.HAS_SHAPE, (Object.BALL, Shape.CIRCLE))
+        self.is_daytime = Predicate(P.IS_DAYTIME)
 
     def test_init(self):
-        s = PredicateBasedState((self.p1, self.p2))
-        self.assertEqual(s.predicates, frozenset((self.p1, self.p2)))
+        s = PredicateBasedState((self.ball_has_color_red, self.ball_has_shape_square))
+        self.assertEqual(
+            s.predicates,
+            frozenset((self.ball_has_color_red, self.ball_has_shape_square)),
+        )
 
     def test_eq_with_same_type(self):
-        s1 = PredicateBasedState((self.p1, self.p2))
-        s2 = PredicateBasedState((self.p1, self.p2))
-        s3 = PredicateBasedState((self.p2, self.p1))
-        s4 = PredicateBasedState((self.p1,))
+        s1 = PredicateBasedState((self.ball_has_color_red, self.ball_has_shape_square))
+        s2 = PredicateBasedState((self.ball_has_color_red, self.ball_has_shape_square))
+        s3 = PredicateBasedState((self.ball_has_shape_square, self.ball_has_color_red))
+        s4 = PredicateBasedState((self.ball_has_color_red,))
 
         self.assertEqual(s1, s2)
         self.assertEqual(s1, s3)
@@ -121,22 +156,36 @@ class TestPredicateBasedStateRepresentation(unittest.TestCase):
             def __hash__(self):
                 return 0
 
-        other_rep = OtherStateRep((self.p1, self.p2))
+        other_rep = OtherStateRep((self.ball_has_color_red, self.ball_has_shape_square))
         self.assertNotEqual(s1, other_rep)
+        self.assertNotEqual(other_rep, s1)
 
     def test_eq_with_tuple(self):
-        s1 = PredicateBasedState(predicates=(self.p1, self.p2))
+        s1 = PredicateBasedState(
+            predicates=(self.ball_has_color_red, self.ball_has_shape_square)
+        )
 
-        self.assertEqual(s1, (self.p1, self.p2))
-        self.assertEqual(s1, (self.p2, self.p1))
-        self.assertNotEqual(s1, (self.p1,))
-        self.assertNotEqual(s1, (self.p1, self.p2, self.p1))
+        self.assertEqual(s1, (self.ball_has_color_red, self.ball_has_shape_square))
+        self.assertEqual(s1, (self.ball_has_shape_square, self.ball_has_color_red))
+        self.assertNotEqual(s1, (self.ball_has_color_red,))
+        self.assertNotEqual(
+            s1,
+            (
+                self.ball_has_color_red,
+                self.ball_has_shape_square,
+                self.ball_has_shape_circle,
+            ),
+        )
 
     def test_hash(self):
-        s1 = PredicateBasedState(predicates=[self.p1, self.p2])
-        s2 = PredicateBasedState(predicates=(self.p1, self.p2))
-        s3 = PredicateBasedState((self.p2, self.p1))
-        s4 = PredicateBasedState((self.p1,))
+        s1 = PredicateBasedState(
+            predicates=[self.ball_has_color_red, self.ball_has_shape_square]
+        )
+        s2 = PredicateBasedState(
+            predicates=(self.ball_has_color_red, self.ball_has_shape_square)
+        )
+        s3 = PredicateBasedState((self.ball_has_shape_square, self.ball_has_color_red))
+        s4 = PredicateBasedState((self.ball_has_color_red,))
 
         state_set = {s1}
         self.assertEqual(hash(s1), hash(s2))
@@ -147,9 +196,11 @@ class TestPredicateBasedStateRepresentation(unittest.TestCase):
         self.assertNotIn(s4, state_set)
 
     def test_frozen(self):
-        s = PredicateBasedState(predicates=[self.p1])
+        s = PredicateBasedState(predicates=[self.ball_has_color_red])
         with self.assertRaises(ValidationError):
-            s.predicates = frozenset([self.p1, self.p2])
+            s.predicates = frozenset(
+                [self.ball_has_color_red, self.ball_has_shape_square]
+            )
 
 
 if __name__ == "__main__":

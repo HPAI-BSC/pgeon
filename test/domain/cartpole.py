@@ -3,10 +3,19 @@ from typing import Tuple
 
 import numpy as np
 
-from pgeon.discretizer import Discretizer, Predicate
+from pgeon.discretizer import Predicate, PredicateBasedState, PredicateDiscretizer
 
 
-class Position(Enum):
+class PredicateName(Enum):
+    POSITION = auto()
+    VELOCITY = auto()
+    ANGLE = auto()
+
+
+P = PredicateName
+
+
+class Direction(Enum):
     LEFT = auto()
     MIDDLE = auto()
     RIGHT = auto()
@@ -17,14 +26,11 @@ class Velocity(Enum):
     RIGHT = auto()
 
 
-class Angle(Enum):
+class Stability(Enum):
     STANDING = auto()
-    STUCK_LEFT = auto()
-    STUCK_RIGHT = auto()
-    FALLING_LEFT = auto()
-    FALLING_RIGHT = auto()
-    STABILIZING_LEFT = auto()
-    STABILIZING_RIGHT = auto()
+    STUCK = auto()
+    FALLING = auto()
+    STABILIZING = auto()
 
 
 class Action(Enum):
@@ -32,42 +38,44 @@ class Action(Enum):
     RIGHT = 1
 
 
-class CartpoleDiscretizer(Discretizer):
+class CartpoleDiscretizer(PredicateDiscretizer):
     def __init__(self):
         super(CartpoleDiscretizer, self).__init__()
 
-    def discretize(self, state: np.ndarray) -> Tuple[Predicate, Predicate, Predicate]:
-        position, velocity, angle, ang_velocity = state
+    def discretize(self, np_state: np.ndarray) -> PredicateBasedState:
+        position, velocity, angle, ang_velocity = np_state
 
         if -2 < position < 2:
-            pos_predicate = Position.MIDDLE
+            pos_predicate = PredicateName.MIDDLE
         elif position < 0:
-            pos_predicate = Position.LEFT
+            pos_predicate = Predicate(P.POSITION, [Direction.LEFT])
         else:
-            pos_predicate = Position.RIGHT
+            pos_predicate = Predicate(P.POSITION, [Direction.RIGHT])
 
         if velocity < 0:
-            mov_predicate = Velocity.LEFT
+            mov_predicate = Predicate(P.VELOCITY, [Velocity.LEFT])
         else:
-            mov_predicate = Velocity.RIGHT
+            mov_predicate = Predicate(P.VELOCITY, [Velocity.RIGHT])
 
         stuck_velocity_thr = 0.1
         standing_angle_thr = 0.0005
         pole_predicate = ""
         if -standing_angle_thr < angle < standing_angle_thr:
-            pole_predicate = Angle.STANDING
+            pole_predicate = Predicate(P.ANGLE, [Stability.STANDING])
         elif angle < 0 and -stuck_velocity_thr < ang_velocity < stuck_velocity_thr:
-            pole_predicate = Angle.STUCK_LEFT
+            pole_predicate = Predicate(P.ANGLE, [Stability.STUCK, Direction.LEFT])
         elif angle > 0 and -stuck_velocity_thr < ang_velocity < stuck_velocity_thr:
-            pole_predicate = Angle.STUCK_RIGHT
+            pole_predicate = Predicate(P.ANGLE, [Stability.STUCK, Direction.RIGHT])
         elif angle < 0 and ang_velocity < 0:
-            pole_predicate = Angle.FALLING_LEFT
+            pole_predicate = Predicate(P.ANGLE, [Stability.FALLING, Direction.LEFT])
         elif angle < 0 and ang_velocity > 0:
-            pole_predicate = Angle.STABILIZING_RIGHT
+            pole_predicate = Predicate(
+                P.ANGLE, [Stability.STABILIZING, Direction.RIGHT]
+            )
         elif angle > 0 and ang_velocity > 0:
-            pole_predicate = Angle.FALLING_RIGHT
+            pole_predicate = Predicate(P.ANGLE, [Stability.FALLING, Direction.RIGHT])
         elif angle > 0 and ang_velocity < 0:
-            pole_predicate = Angle.STABILIZING_LEFT
+            pole_predicate = Predicate(P.ANGLE, [Stability.STABILIZING, Direction.LEFT])
 
         return (
             Predicate(pos_predicate),
@@ -78,11 +86,14 @@ class CartpoleDiscretizer(Discretizer):
     def state_to_str(self, state: Tuple[Predicate, Predicate, Predicate]) -> str:
         return "&".join(str(pred) for pred in state)
 
-    def str_to_state(self, state: str):
-        pos, vel, angle = state.split("&")
-        pos_predicate = Position[pos[:-1].split("(")[1]]
-        mov_predicate = Velocity[vel[:-1].split("(")[1]]
-        pole_predicate = Angle[angle[:-1].split("(")[1]]
+    def str_to_predicate(self, name_and_arguments: dict[str, list[str]]):
+        for name, arguments in name_and_arguments.items():
+            if name == P.POSITION.name:
+                pos_predicate = Predicate(P.POSITION, [Direction[arguments[0]]])
+            elif name == P.VELOCITY.name:
+                mov_predicate = Predicate(P.VELOCITY, [Velocity[arguments[0]]])
+            elif name == P.ANGLE.name:
+                pole_predicate = Predicate(P.ANGLE, [Stability[arguments[0]]])
 
         return (
             Predicate(pos_predicate),
