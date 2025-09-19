@@ -14,6 +14,11 @@ class DummyState(Enum):
     ONE = auto()
     TWO = auto()
     THREE = auto()
+    FOUR = auto()
+    FIVE = auto()
+    SIX = auto()
+    SEVEN = auto()
+    EIGHT = auto()
 
 
 class TestingEnv(gymnasium.Env):
