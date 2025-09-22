@@ -1,6 +1,9 @@
 import csv
 import unittest
 from pathlib import Path
+
+import numpy as np
+
 from test.pgeon.intentions.predicates import (
     Action2Nearest,
     Agent,
@@ -29,6 +32,7 @@ from pgeon.policy_representation import GraphRepresentation
 
 NODES_PATH = Path(__file__).parent / "pg_simple_14_nodes.csv"
 EDGES_PATH = Path(__file__).parent / "pg_simple_14_edges.csv"
+INTENTIONS_PATH = Path(__file__).parent / "intentions_simple_D14_C0.5.csv"
 
 pred_classes = [Held, PotState, Action2Nearest, Direction, Agent, Object, PredicateName]
 pred_enum_values = {
@@ -107,17 +111,17 @@ def load_nodes_and_edges(nodes_path: Path, edges_path: Path):
                 node_to,
                 Transition(action=action, probability=prob),
             )
-    return representation
+    return representation, node_ids_to_values
 
 
 class TestIntentions(unittest.TestCase):
     def test_load_nodes_and_edges(self):
-        pr = load_nodes_and_edges(NODES_PATH, EDGES_PATH)
+        pr, _ = load_nodes_and_edges(NODES_PATH, EDGES_PATH)
         self.assertEqual(len(list(pr.states)), 2918)
         self.assertEqual(len(list(pr.transitions)), 13904)
 
     def test_propagate_intentions(self):
-        pr = load_nodes_and_edges(NODES_PATH, EDGES_PATH)
+        pr, ids = load_nodes_and_edges(NODES_PATH, EDGES_PATH)
         pa = IntentionAwarePolicyApproximator(None, pr, None, None)
 
         desire_to_service = Desire(
@@ -146,18 +150,16 @@ class TestIntentions(unittest.TestCase):
 
         pa.register_desire(desire_to_service)
 
-        rows = []
-        for state in pr.states:
-            state_metadata = pr.states[state].metadata
-            intentions = {
-                desire.name: state_metadata.intention[desire]
-                for desire in state_metadata.intention
-            }
-            rows.append({"node_id": state_metadata.id, **intentions})
-            print(state)
-        df = pd.DataFrame(rows)
-        df.to_csv("intentions.csv", index=False)
-        print(df.head())
+        golden_truth = (
+            pd.read_csv(INTENTIONS_PATH)
+                .set_index("node_id")
+                .loc[:, ["desire_to_service"]]
+        )
+
+        for state_id, series in golden_truth.iterrows():
+            truth_datum = series["desire_to_service"]
+            if not np.isnan(truth_datum):
+                self.assertAlmostEqual(truth_datum, pr.states[ids[state_id]].metadata.intention[desire_to_service])
 
 
 if __name__ == "__main__":
