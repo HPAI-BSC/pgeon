@@ -1,8 +1,16 @@
 import csv
 import unittest
 from pathlib import Path
+from test.domain.test_env import DummyState
+from test.pgeon.intentions.ego import Discretizer11
+from test.pgeon.intentions.predicates import Agent
 
-from pgeon.discretizer import Transition
+from pgeon.desire import Desire
+from pgeon.discretizer import (
+    Predicate,
+    PredicateBasedState,
+    Transition,
+)
 from pgeon.intention_aware_policy_approximator import (
     IntentionalStateMetadata,
     IntentionAwarePolicyApproximator,
@@ -11,6 +19,8 @@ from pgeon.policy_representation import GraphRepresentation
 
 NODES_PATH = Path(__file__).parent / "pg_simple_14_nodes.csv"
 EDGES_PATH = Path(__file__).parent / "pg_simple_14_edges.csv"
+
+discretizer = Discretizer11(pov=Agent.PLAYER)
 
 
 def load_nodes_and_edges(nodes_path: Path, edges_path: Path):
@@ -34,7 +44,7 @@ def load_nodes_and_edges(nodes_path: Path, edges_path: Path):
 
         for row in csv_r:
             state_id = int(row[0])
-            value = str(row[1])
+            value = discretizer.str_to_state(row[1])
             prob = float(row[2])
             freq = None
 
@@ -74,7 +84,9 @@ class TestIntentions(unittest.TestCase):
     def test_propagate_intentions(self):
         pr = load_nodes_and_edges(NODES_PATH, EDGES_PATH)
         pga = IntentionAwarePolicyApproximator(None, pr, None, None)
-        # pga.register_desire(Desire("reach_one", 0, PredicateBasedState([Predicate(DummyState.ONE)])))
+        pga.register_desire(
+            Desire("reach_one", 0, PredicateBasedState([Predicate(DummyState.ONE)]))
+        )
 
 
 if __name__ == "__main__":
