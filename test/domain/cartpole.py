@@ -3,7 +3,7 @@ from typing import Tuple
 
 import numpy as np
 
-from pgeon.discretizer import Predicate, PredicateBasedState, PredicateDiscretizer
+from pgeon.discretizer import Discretizer, Predicate, PredicateBasedState
 
 
 class PredicateName(Enum):
@@ -38,7 +38,7 @@ class Action(Enum):
     RIGHT = 1
 
 
-class CartpoleDiscretizer(PredicateDiscretizer):
+class CartpoleDiscretizer(Discretizer):
     def __init__(self):
         super(CartpoleDiscretizer, self).__init__()
 
