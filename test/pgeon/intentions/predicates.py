@@ -1,6 +1,19 @@
 from enum import Enum, auto
 
 
+class PredicateName(Enum):
+    HELD_PLAYER = auto()
+    HELD_PARTNER = auto()
+    PLAYER_POSITION = auto()
+    PARTNER_POSITION = auto()
+    ACTION2NEAREST = auto()
+    POT_STATE = auto()
+    DIRECTION = auto()
+    AGENT = auto()
+    OBJECT = auto()
+    ORIENTATIONS = auto()
+
+
 class Held(Enum):
     NOTHING = auto()
     ONION = auto()

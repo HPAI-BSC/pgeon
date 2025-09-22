@@ -106,6 +106,7 @@ class TransitionData:
 
 
 class StateMetadata(BaseModel):
+    id: int | None = None
     probability: float = 0.0
     frequency: int = 0
 
