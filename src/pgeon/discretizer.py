@@ -111,20 +111,141 @@ class StateMetadata(BaseModel):
 
 
 class Discretizer(abc.ABC):
-    @abc.abstractmethod
-    def discretize(self, non_discrete_state) -> State: ...
+    PREDICATE_TYPES: Sequence[type[Enum]] = ()
 
     @abc.abstractmethod
-    def state_to_str(self, state: State) -> str: ...
+    def discretize(self, non_discrete_state) -> State:
+        ...
 
     @abc.abstractmethod
-    def str_to_state(self, state_str: str) -> Predicate: ...
+    def state_to_str(self, state: State) -> str:
+        predicates = self._extract_predicates(state)
+
+        ordered_predicates = sorted(
+            predicates,
+            key=lambda predicate: self._predicate_sort_key(predicate),
+        )
+
+        return "&".join(
+            self._predicate_to_str(predicate)
+            for predicate in ordered_predicates
+        )
 
     @abc.abstractmethod
-    def nearest_state(self, state) -> Iterator[State]: ...
+    def str_to_state(self, state_str: str) -> State:
+        if not self.PREDICATE_TYPES:
+            raise NotImplementedError(
+                f"{self.__class__.__name__} must define PREDICATE_TYPES "
+                f"or implement str_to_state manually."
+            )
+
+        parsed_predicates = {}
+
+        for raw_predicate in state_str.split("&"):
+            if not raw_predicate.strip():
+                continue
+
+            predicate = self._str_to_predicate(raw_predicate)
+
+            enum_value = self._predicate_enum_value(predicate)
+            enum_type = type(enum_value)
+
+            if enum_type in parsed_predicates:
+                raise ValueError(
+                    f"Duplicated predicate type {enum_type.__name__} "
+                    f"in serialized state: {state_str}"
+                )
+
+            parsed_predicates[enum_type] = predicate
+
+        missing_types = [
+            enum_type.__name__
+            for enum_type in self.PREDICATE_TYPES
+            if enum_type not in parsed_predicates
+        ]
+
+        if missing_types:
+            raise ValueError(
+                f"Serialized state is missing predicates of type "
+                f"{missing_types}: {state_str}"
+            )
+
+        return tuple(
+            parsed_predicates[enum_type]
+            for enum_type in self.PREDICATE_TYPES
+        )
+
+    def _extract_predicates(self, state: State) -> tuple[Predicate, ...]:
+        if isinstance(state, PredicateBasedState):
+            return tuple(state.predicates)
+
+        if isinstance(state, tuple) and all(
+            isinstance(predicate, Predicate)
+            for predicate in state
+        ):
+            return state
+
+        raise ValueError(
+            f"Cannot serialize state of type {type(state).__name__}. "
+            f"Expected PredicateBasedState or tuple[Predicate, ...]."
+        )
+
+    def _predicate_to_str(self, predicate: Predicate) -> str:
+        enum_value = self._predicate_enum_value(predicate)
+        enum_type = type(enum_value)
+
+        return f"Predicate({enum_type.__name__}.{enum_value.name})"
+
+    def _str_to_predicate(self, raw_predicate: str) -> Predicate:
+        raw_predicate = raw_predicate.strip()
+
+        if not raw_predicate.startswith("Predicate(") or not raw_predicate.endswith(")"):
+            raise ValueError(f"Invalid predicate format: {raw_predicate}")
+
+        content = raw_predicate[len("Predicate("):-1]
+
+        if "." not in content:
+            raise ValueError(f"Invalid predicate content: {content}")
+
+        enum_type_name, enum_member_name = content.split(".", 1)
+
+        for enum_type in self.PREDICATE_TYPES:
+            if enum_type.__name__ == enum_type_name:
+                try:
+                    return Predicate(enum_type[enum_member_name])
+                except KeyError as exc:
+                    raise ValueError(
+                        f"Unknown enum member {enum_member_name} "
+                        f"for enum type {enum_type_name}"
+                    ) from exc
+
+        raise ValueError(f"Unknown enum type: {enum_type_name}")
+
+    def _predicate_sort_key(self, predicate: Predicate) -> int:
+        enum_value = self._predicate_enum_value(predicate)
+        enum_type = type(enum_value)
+
+        if enum_type not in self.PREDICATE_TYPES:
+            raise ValueError(f"Unknown predicate type: {enum_type}")
+
+        return list(self.PREDICATE_TYPES).index(enum_type)
+
+    def _predicate_enum_value(self, predicate: Predicate) -> Enum:
+        value = predicate.name
+
+        if not isinstance(value, Enum):
+            raise ValueError(f"Predicate does not contain an enum name: {predicate}")
+
+        return value
 
     @abc.abstractmethod
-    def all_actions(self) -> Sequence[Action]: ...
+    def nearest_state(self, state) -> Iterator[State]:
+        ...
 
     @abc.abstractmethod
-    def get_predicate_space(self) -> Sequence[Predicate]: ...
+    def all_actions(self) -> Sequence[Action]:
+        ...
+
+    @abc.abstractmethod
+    def get_predicate_space(self) -> Sequence[Predicate]:
+        ...
