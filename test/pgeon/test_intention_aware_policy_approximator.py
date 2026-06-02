@@ -15,7 +15,239 @@ from pgeon.intention_aware_policy_approximator import (
     ProbQuery,
 )
 from pgeon.policy_representation import GraphRepresentation
+from pgeon.policy_approximator import PolicyApproximatorFromBasicObservation
 
+
+class TestFromPG(unittest.TestCase):
+    def setUp(self):
+        self.env = TestingEnv()
+        self.discretizer = TestingDiscretizer()
+        self.agent = TestingAgent()
+
+        self.s0 = PredicateBasedState((Predicate(DummyState.ZERO),))
+        self.s1 = PredicateBasedState((Predicate(DummyState.ONE),))
+
+        self.rep = GraphRepresentation(
+            state_metadata_class=IntentionalStateMetadata
+        )
+
+        self.rep.states[self.s0] = IntentionalStateMetadata(
+            probability=0.4,
+            frequency=4,
+            intention={
+                Desire(
+                    "old",
+                    0,
+                    PredicateBasedState([]),
+                ): 1.0
+            },
+        )
+
+        self.rep.states[self.s1] = IntentionalStateMetadata(
+            probability=0.6,
+            frequency=6,
+            intention={
+                Desire(
+                    "another",
+                    0,
+                    PredicateBasedState([]),
+                ): 2.0
+            },
+        )
+
+        self.rep.transitions[self.s0][self.s1] = Transition(
+            action=0,
+            probability=1.0,
+        )
+
+        class DummyPG:
+            pass
+
+        self.pg = DummyPG()
+        self.pg.policy_representation = self.rep
+        self.pg.discretizer = self.discretizer
+        self.pg.environment = self.env
+        self.pg.agent = self.agent
+        self.pg._is_fit = True
+        self.pg._trajectories_of_last_fit = [["a", "b"]]
+
+    # -------------------------
+    # HAPPY PATHS
+    # -------------------------
+    
+    def test_from_pg_returns_ipg_instance(self):
+        ipg = IntentionAwarePolicyApproximator.from_pg(self.pg)
+    
+        self.assertIsInstance(
+            ipg,
+            IntentionAwarePolicyApproximator,
+        )
+    
+    
+    def test_from_pg_copies_states(self):
+        ipg = IntentionAwarePolicyApproximator.from_pg(self.pg)
+    
+        self.assertEqual(
+            set(ipg.policy_representation.states),
+            set(self.pg.policy_representation.states),
+        )
+    
+    
+    def test_from_pg_copies_metadata_and_initializes_empty_intentions(self):
+        ipg = IntentionAwarePolicyApproximator.from_pg(self.pg)
+    
+        for state in self.pg.policy_representation.states:
+            old_meta = self.pg.policy_representation.states[state].metadata
+            new_meta = ipg.policy_representation.states[state].metadata
+    
+            self.assertIsInstance(
+                new_meta,
+                IntentionalStateMetadata,
+            )
+    
+            self.assertEqual(
+                old_meta.probability,
+                new_meta.probability,
+            )
+    
+            self.assertEqual(
+                old_meta.frequency,
+                new_meta.frequency,
+            )
+    
+            self.assertEqual(
+                new_meta.intention,
+                {},
+            )
+    
+    
+    def test_from_pg_copies_transitions(self):
+        ipg = IntentionAwarePolicyApproximator.from_pg(self.pg)
+    
+        original_transition = self.pg.policy_representation.transitions[
+            self.s0
+        ][self.s1]
+    
+        copied_transition = ipg.policy_representation.transitions[
+            self.s0
+        ][self.s1]
+    
+        self.assertEqual(
+            original_transition.action,
+            copied_transition.action,
+        )
+    
+        self.assertEqual(
+            original_transition.probability,
+            copied_transition.probability,
+        )
+    
+    
+    def test_from_pg_copies_internal_fit_state(self):
+        ipg = IntentionAwarePolicyApproximator.from_pg(self.pg)
+    
+        self.assertEqual(
+            ipg._is_fit,
+            self.pg._is_fit,
+        )
+    
+        self.assertEqual(
+            ipg._trajectories_of_last_fit,
+            self.pg._trajectories_of_last_fit,
+        )
+    
+    
+    def test_from_pg_creates_independent_copies(self):
+        ipg = IntentionAwarePolicyApproximator.from_pg(self.pg)
+    
+        ipg._trajectories_of_last_fit.append(["new"])
+    
+        self.assertNotEqual(
+            ipg._trajectories_of_last_fit,
+            self.pg._trajectories_of_last_fit,
+        )
+    
+        ipg.policy_representation.transitions[self.s0][
+            self.s1
+        ].probability = 0.2
+    
+        original_probability = self.pg.policy_representation.transitions[
+            self.s0
+        ][self.s1].probability
+    
+        self.assertEqual(
+            original_probability,
+            1.0,
+        )
+    
+    
+    def test_from_pg_preserves_environment_and_agent(self):
+        ipg = IntentionAwarePolicyApproximator.from_pg(self.pg)
+    
+        self.assertIs(
+            ipg.environment,
+            self.pg.environment,
+        )
+    
+        self.assertIs(
+            ipg.agent,
+            self.pg.agent,
+        )
+    
+    # -------------------------
+    # UNHAPPY / EDGE PATHS
+    # -------------------------
+
+    def test_from_pg_with_empty_graph(self):
+        empty_rep = GraphRepresentation(
+            state_metadata_class=IntentionalStateMetadata
+        )
+
+        empty_pg = PolicyApproximatorFromBasicObservation(
+            discretizer=self.discretizer,
+            policy_representation=empty_rep,
+            environment=self.env,
+            agent=self.agent,
+        )
+
+        ipg = IntentionAwarePolicyApproximator.from_pg(empty_pg)
+
+        self.assertEqual(
+            len(list(ipg.policy_representation.states)),
+            0,
+        )
+
+    def test_from_pg_preserves_independence_from_original_metadata(self):
+        ipg = IntentionAwarePolicyApproximator.from_pg(self.pg)
+
+        ipg.policy_representation.states[self.s0] = (
+            IntentionalStateMetadata(
+                probability=999,
+                frequency=4,
+                intention={},
+            )
+        )
+
+        self.assertNotEqual(
+            ipg.policy_representation.states[self.s0].metadata.probability,
+            self.pg.policy_representation.states[self.s0].metadata.probability,
+        )
+
+    def test_from_pg_fails_without_policy_representation(self):
+        class BrokenPG:
+            pass
+
+        broken_pg = BrokenPG()
+        broken_pg.policy_representation = None
+        broken_pg.discretizer = self.discretizer
+        broken_pg.environment = self.env
+        broken_pg.agent = self.agent
+        broken_pg._is_fit = True
+        broken_pg._trajectories_of_last_fit = []
+
+        with self.assertRaises(TypeError):
+            IntentionAwarePolicyApproximator.from_pg(broken_pg)
+            
 
 class TestProbQuery(unittest.TestCase):
     def test_valid_queries(self):
@@ -274,9 +506,9 @@ class TestIntentionMetrics(unittest.TestCase):
 
         # Graph representation with explicit probabilities
         self.rep = GraphRepresentation(state_metadata_class=IntentionalStateMetadata)
-        self.rep.states[self.s0] = IntentionalStateMetadata()
-        self.rep.states[self.s1] = IntentionalStateMetadata()
-        self.rep.states[self.s2] = IntentionalStateMetadata()
+        self.rep.states[self.s0] = IntentionalStateMetadata(probability=0.2)
+        self.rep.states[self.s1] = IntentionalStateMetadata(probability=0.3)
+        self.rep.states[self.s2] = IntentionalStateMetadata(probability=0.5)
         # Transitions (action 0)
         self.rep.transitions[self.s0][self.s1] = Transition(action=0, probability=0.7)
         self.rep.transitions[self.s0][self.s2] = Transition(action=0, probability=0.3)
@@ -317,18 +549,36 @@ class TestIntentionMetrics(unittest.TestCase):
         self.assertAlmostEqual(mapping.get(self.s0, 0.0), 0.7)
 
     def test_intention_metrics(self):
-        attrib_probs, expected = self.ipg.compute_intention_metrics(
-            commitment_threshold=0.5
+        attrib_probs, expected = (
+            self.ipg.compute_intention_metrics(
+                commitment_threshold=0.5
+            )
         )
         # At commitment_threshold=0.5, both s1 (1.0) and s0 (0.7) still qualify;
         # attributed probability is P(s1)+P(s0)=0.3+0.2=0.5 and
         # expected intention is (1*0.3 + 0.7*0.2)/0.5 = 0.88. "Any" matches here.
         self.assertIn("reach_one", attrib_probs)
         self.assertIn("reach_one", expected)
-        self.assertAlmostEqual(attrib_probs["reach_one"], 0.5)
-        self.assertAlmostEqual(expected["reach_one"], 0.88)
-        self.assertAlmostEqual(attrib_probs["Any"], 0.5)
-        self.assertAlmostEqual(expected["Any"], 0.88)
+
+        self.assertAlmostEqual(
+            attrib_probs["reach_one"],
+            0.5,
+        )
+
+        self.assertAlmostEqual(
+            expected["reach_one"],
+            0.88,
+        )
+
+        self.assertAlmostEqual(
+            attrib_probs["Any"],
+            0.5,
+        )
+
+        self.assertAlmostEqual(
+            expected["Any"],
+            0.88,
+        )
 
     def test_how_stochastic_branches(self):
         # From s0 there are two branches for action 0: to s1 with 0.7 and to s2 with 0.3.
