@@ -102,7 +102,7 @@ class TestPredicate(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             p1 < "not a predicate"
-
+            
 
 class TestTransition(unittest.TestCase):
     def test_transition_creation(self):
@@ -200,6 +200,217 @@ class TestPredicateBasedStateRepresentation(unittest.TestCase):
         with self.assertRaises(ValidationError):
             s.predicates = frozenset(
                 [self.ball_has_color_red, self.ball_has_shape_square]
+            )
+
+
+class TestPredicateBasedStateRepresentation(unittest.TestCase):
+    def setUp(self):
+        self.ball_has_color_red = Predicate(
+            P.HAS_COLOR,
+            (Object.BALL, Color.RED),
+        )
+
+        self.ball_has_color_green = Predicate(
+            P.HAS_COLOR,
+            (Object.BALL, Color.GREEN),
+        )
+
+        self.ball_has_shape_square = Predicate(
+            P.HAS_SHAPE,
+            (Object.BALL, Shape.SQUARE),
+        )
+
+        self.ball_has_shape_circle = Predicate(
+            P.HAS_SHAPE,
+            (Object.BALL, Shape.CIRCLE),
+        )
+
+        self.is_daytime = Predicate(P.IS_DAYTIME)
+
+    def test_init(self):
+        s = PredicateBasedState(
+            (self.ball_has_color_red, self.ball_has_shape_square)
+        )
+
+        self.assertEqual(
+            s.predicates,
+            frozenset(
+                (
+                    self.ball_has_color_red,
+                    self.ball_has_shape_square,
+                )
+            ),
+        )
+
+    def test_eq_with_same_type(self):
+        s1 = PredicateBasedState(
+            (
+                self.ball_has_color_red,
+                self.ball_has_shape_square,
+            )
+        )
+
+        s2 = PredicateBasedState(
+            (
+                self.ball_has_color_red,
+                self.ball_has_shape_square,
+            )
+        )
+
+        s3 = PredicateBasedState(
+            (
+                self.ball_has_shape_square,
+                self.ball_has_color_red,
+            )
+        )
+
+        s4 = PredicateBasedState((self.ball_has_color_red,))
+
+        self.assertEqual(s1, s2)
+        self.assertEqual(s1, s3)
+
+        self.assertNotEqual(s1, s4)
+        self.assertNotEqual(s1, "not a state")
+
+    def test_eq_with_tuple(self):
+        s = PredicateBasedState(
+            (
+                self.ball_has_color_red,
+                self.ball_has_shape_square,
+            )
+        )
+
+        self.assertEqual(
+            s,
+            (
+                self.ball_has_color_red,
+                self.ball_has_shape_square,
+            ),
+        )
+
+        self.assertEqual(
+            s,
+            (
+                self.ball_has_shape_square,
+                self.ball_has_color_red,
+            ),
+        )
+
+        self.assertNotEqual(
+            s,
+            (self.ball_has_color_red,),
+        )
+
+    def test_str_without_arguments(self):
+        s = PredicateBasedState((self.is_daytime,))
+
+        expected = str(
+            [
+                ("PredicateName", "IS_DAYTIME"),
+            ]
+        )
+
+        self.assertEqual(str(s), expected)
+
+    def test_str_with_arguments(self):
+        s = PredicateBasedState(
+            (
+                self.ball_has_color_red,
+                self.ball_has_shape_circle,
+            )
+        )
+
+        expected = str(
+            [
+                ("PredicateName", "HAS_COLOR"),
+                ("PredicateName", "HAS_SHAPE"),
+            ]
+        )
+
+        self.assertEqual(str(s), expected)
+
+    def test_str_sorted_order(self):
+        s = PredicateBasedState(
+            (
+                self.is_daytime,
+                self.ball_has_color_red,
+                self.ball_has_shape_circle,
+            )
+        )
+
+        expected = str(
+            [
+                ("PredicateName", "HAS_COLOR"),
+                ("PredicateName", "HAS_SHAPE"),
+                ("PredicateName", "IS_DAYTIME"),
+            ]
+        )
+
+        self.assertEqual(str(s), expected)
+
+    def test_repr(self):
+        s = PredicateBasedState(
+            (
+                self.ball_has_color_red,
+                self.is_daytime,
+            )
+        )
+
+        expected = str(
+            [
+                ("PredicateName", "HAS_COLOR"),
+                ("PredicateName", "IS_DAYTIME"),
+            ]
+        )
+
+        self.assertEqual(repr(s), expected)
+
+    def test_hash(self):
+        s1 = PredicateBasedState(
+            (
+                self.ball_has_color_red,
+                self.ball_has_shape_square,
+            )
+        )
+
+        s2 = PredicateBasedState(
+            (
+                self.ball_has_shape_square,
+                self.ball_has_color_red,
+            )
+        )
+
+        s3 = PredicateBasedState((self.ball_has_color_red,))
+
+        state_set = {s1}
+
+        self.assertEqual(hash(s1), hash(s2))
+        self.assertNotEqual(hash(s1), hash(s3))
+
+        self.assertIn(s2, state_set)
+        self.assertNotIn(s3, state_set)
+
+    def test_lt(self):
+        s1 = PredicateBasedState((self.ball_has_color_red,))
+        s2 = PredicateBasedState((self.ball_has_shape_square,))
+
+        self.assertIsInstance(s1 < s2, bool)
+
+    def test_lt_invalid_type(self):
+        s = PredicateBasedState((self.ball_has_color_red,))
+
+        with self.assertRaises(ValueError):
+            s < "not a state"
+
+    def test_frozen(self):
+        s = PredicateBasedState((self.ball_has_color_red,))
+
+        with self.assertRaises(ValidationError):
+            s.predicates = frozenset(
+                (
+                    self.ball_has_color_red,
+                    self.ball_has_shape_square,
+                )
             )
 
 
