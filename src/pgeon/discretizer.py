@@ -57,7 +57,17 @@ class PredicateBasedState(State, BaseModel):
         return False
 
     def __str__(self):
-        return "+".join(sorted([str(p) for p in self.predicates]))
+        readable = []
+    
+        for p in sorted(self.predicates):
+            enum_val = p.name
+    
+            key = enum_val.__class__.__name__
+            value = enum_val.name
+    
+            readable.append((key, value))
+    
+        return str(readable)
 
     def __repr__(self):
         return self.__str__()
