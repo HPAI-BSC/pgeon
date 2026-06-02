@@ -1,6 +1,7 @@
 import warnings
 from dataclasses import dataclass
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
+from copy import deepcopy
 
 import gymnasium as gym
 
@@ -88,6 +89,52 @@ class IntentionAwarePolicyApproximator(
         self.registered_desires: List[Desire] = list()
         self.verbose = verbose
         self.commitment_threshold = 0.5
+
+    @classmethod
+    def from_pg(cls, pg, verbose=False):
+    
+        ipg_representation = type(pg.policy_representation)(
+            state_metadata_class=IntentionalStateMetadata
+        )
+    
+        # ---- copiar estados ----
+        for state in pg.policy_representation.states:
+    
+            old_meta = pg.policy_representation.states[state].metadata
+    
+            new_meta = IntentionalStateMetadata(
+                probability=old_meta.probability,
+                frequency=old_meta.frequency,
+                intention={},
+            )
+    
+            ipg_representation.states[state] = new_meta
+    
+        # ---- copiar transiciones ----
+        for state in pg.policy_representation.states:
+    
+            for transition_data in pg.policy_representation.transitions[state]:
+    
+                ipg_representation.transitions[state][
+                    transition_data.to_state
+                ] = deepcopy(transition_data)
+    
+        # ---- construir IPG ----
+        ipg = cls(
+            discretizer=pg.discretizer,
+            policy_representation=ipg_representation,
+            environment=pg.environment,
+            agent=pg.agent,
+            verbose=verbose,
+        )
+    
+        ipg._is_fit = pg._is_fit
+    
+        ipg._trajectories_of_last_fit = deepcopy(
+            pg._trajectories_of_last_fit
+        )
+    
+        return ipg
 
     def prob(self, query: ProbQuery) -> float:
         s, a, s_prima, given_s, given_a, given_do_a = (
