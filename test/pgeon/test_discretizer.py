@@ -1,9 +1,12 @@
 import unittest
 from enum import Enum, auto
+from typing import Iterator, Sequence
 
 from pydantic import ValidationError
 
 from pgeon.discretizer import (
+    Action,
+    Discretizer,
     Predicate,
     PredicateBasedState,
     State,
@@ -201,6 +204,260 @@ class TestPredicateBasedStateRepresentation(unittest.TestCase):
             s.predicates = frozenset(
                 [self.ball_has_color_red, self.ball_has_shape_square]
             )
+
+# -------------------------
+# Serialization test domain
+# -------------------------
+
+
+class Position(Enum):
+    LEFT = auto()
+    MIDDLE = auto()
+    RIGHT = auto()
+
+
+class Velocity(Enum):
+    LEFT = auto()
+    RIGHT = auto()
+
+
+class Angle(Enum):
+    STANDING = auto()
+    FALLING_LEFT = auto()
+    FALLING_RIGHT = auto()
+
+
+class UnknownPredicateType(Enum):
+    UNKNOWN = auto()
+
+
+class TestSerializableDiscretizer(Discretizer):
+    PREDICATE_TYPES = (
+        Position,
+        Velocity,
+        Angle,
+    )
+
+    def discretize(self, non_discrete_state) -> State:
+        return non_discrete_state
+
+    def state_to_str(self, state: State) -> str:
+        return super().state_to_str(state)
+
+    def str_to_state(self, state_str: str) -> State:
+        return super().str_to_state(state_str)
+
+    def nearest_state(self, state) -> Iterator[State]:
+        return iter(())
+
+    def all_actions(self) -> Sequence[Action]:
+        return [0, 1]
+
+    def get_predicate_space(self) -> Sequence[Predicate]:
+        return [
+            Predicate(Position.LEFT),
+            Predicate(Position.MIDDLE),
+            Predicate(Position.RIGHT),
+            Predicate(Velocity.LEFT),
+            Predicate(Velocity.RIGHT),
+            Predicate(Angle.STANDING),
+            Predicate(Angle.FALLING_LEFT),
+            Predicate(Angle.FALLING_RIGHT),
+        ]
+
+
+class TestDiscretizerSerialization(unittest.TestCase):
+    def setUp(self):
+        self.discretizer = TestSerializableDiscretizer()
+
+        self.position = Predicate(Position.MIDDLE)
+        self.velocity = Predicate(Velocity.RIGHT)
+        self.angle = Predicate(Angle.STANDING)
+
+    # -------------------------
+    # HAPPY PATHS
+    # -------------------------
+
+    def test_state_to_str_serializes_tuple_in_deterministic_order(self):
+        state = (
+            self.angle,
+            self.position,
+            self.velocity,
+        )
+
+        state_str = self.discretizer.state_to_str(state)
+
+        self.assertEqual(
+            state_str,
+            (
+                "Predicate(Position.MIDDLE)&"
+                "Predicate(Velocity.RIGHT)&"
+                "Predicate(Angle.STANDING)"
+            ),
+        )
+
+    def test_state_to_str_serializes_predicate_based_state_in_deterministic_order(self):
+        state = PredicateBasedState(
+            predicates={
+                self.angle,
+                self.position,
+                self.velocity,
+            }
+        )
+
+        state_str = self.discretizer.state_to_str(state)
+
+        self.assertEqual(
+            state_str,
+            (
+                "Predicate(Position.MIDDLE)&"
+                "Predicate(Velocity.RIGHT)&"
+                "Predicate(Angle.STANDING)"
+            ),
+        )
+
+    def test_str_to_state_handles_predicates_in_expected_order(self):
+        state_str = (
+            "Predicate(Position.MIDDLE)&"
+            "Predicate(Velocity.RIGHT)&"
+            "Predicate(Angle.STANDING)"
+        )
+
+        state = self.discretizer.str_to_state(state_str)
+
+        self.assertEqual(
+            state,
+            (
+                Predicate(Position.MIDDLE),
+                Predicate(Velocity.RIGHT),
+                Predicate(Angle.STANDING),
+            ),
+        )
+
+    def test_str_to_state_handles_unordered_predicates(self):
+        state_str = (
+            "Predicate(Angle.STANDING)&"
+            "Predicate(Position.MIDDLE)&"
+            "Predicate(Velocity.RIGHT)"
+        )
+
+        state = self.discretizer.str_to_state(state_str)
+
+        self.assertEqual(
+            state,
+            (
+                Predicate(Position.MIDDLE),
+                Predicate(Velocity.RIGHT),
+                Predicate(Angle.STANDING),
+            ),
+        )
+
+    def test_state_serialization_round_trip_with_unordered_tuple_state(self):
+        original_state = (
+            Predicate(Angle.FALLING_LEFT),
+            Predicate(Velocity.LEFT),
+            Predicate(Position.RIGHT),
+        )
+
+        serialized = self.discretizer.state_to_str(original_state)
+        loaded_state = self.discretizer.str_to_state(serialized)
+
+        self.assertEqual(
+            loaded_state,
+            (
+                Predicate(Position.RIGHT),
+                Predicate(Velocity.LEFT),
+                Predicate(Angle.FALLING_LEFT),
+            ),
+        )
+
+    # -------------------------
+    # UNHAPPY PATHS
+    # -------------------------
+
+    def test_str_to_state_raises_error_when_position_is_missing(self):
+        state_str = (
+            "Predicate(Velocity.RIGHT)&"
+            "Predicate(Angle.STANDING)"
+        )
+
+        with self.assertRaises(ValueError):
+            self.discretizer.str_to_state(state_str)
+
+    def test_str_to_state_raises_error_when_velocity_is_missing(self):
+        state_str = (
+            "Predicate(Position.MIDDLE)&"
+            "Predicate(Angle.STANDING)"
+        )
+
+        with self.assertRaises(ValueError):
+            self.discretizer.str_to_state(state_str)
+
+    def test_str_to_state_raises_error_when_angle_is_missing(self):
+        state_str = (
+            "Predicate(Position.MIDDLE)&"
+            "Predicate(Velocity.RIGHT)"
+        )
+
+        with self.assertRaises(ValueError):
+            self.discretizer.str_to_state(state_str)
+
+    def test_str_to_state_raises_error_when_predicate_type_is_duplicated(self):
+        state_str = (
+            "Predicate(Position.LEFT)&"
+            "Predicate(Position.RIGHT)&"
+            "Predicate(Velocity.RIGHT)&"
+            "Predicate(Angle.STANDING)"
+        )
+
+        with self.assertRaises(ValueError):
+            self.discretizer.str_to_state(state_str)
+
+    def test_str_to_state_raises_error_for_unknown_enum_type(self):
+        state_str = (
+            "Predicate(Position.MIDDLE)&"
+            "Predicate(Velocity.RIGHT)&"
+            "Predicate(UnknownPredicateType.UNKNOWN)"
+        )
+
+        with self.assertRaises(ValueError):
+            self.discretizer.str_to_state(state_str)
+
+    def test_str_to_state_raises_error_for_unknown_enum_member(self):
+        state_str = (
+            "Predicate(Position.MIDDLE)&"
+            "Predicate(Velocity.RIGHT)&"
+            "Predicate(Angle.UNKNOWN)"
+        )
+
+        with self.assertRaises(ValueError):
+            self.discretizer.str_to_state(state_str)
+
+    def test_str_to_state_raises_error_for_invalid_predicate_format(self):
+        state_str = (
+            "Predicate(Position.MIDDLE)&"
+            "Velocity.RIGHT&"
+            "Predicate(Angle.STANDING)"
+        )
+
+        with self.assertRaises(ValueError):
+            self.discretizer.str_to_state(state_str)
+
+    def test_state_to_str_raises_error_for_unknown_predicate_type(self):
+        state = (
+            Predicate(Position.MIDDLE),
+            Predicate(Velocity.RIGHT),
+            Predicate(UnknownPredicateType.UNKNOWN),
+        )
+
+        with self.assertRaises(ValueError):
+            self.discretizer.state_to_str(state)
+
+    def test_state_to_str_raises_error_for_unsupported_state_type(self):
+        unsupported_state = "not a valid state"
+
+        with self.assertRaises(ValueError):
+            self.discretizer.state_to_str(unsupported_state)
 
 
 if __name__ == "__main__":
